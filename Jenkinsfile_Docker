@@ -10,7 +10,7 @@ pipeline {
         AWS_ACCOUNT_ID = '375299695019'
         AWS_DEFAULT_REGION = 'us-east-1'
         APP_SOURCE_PATH = 'pdf_converter_FastAPI_app/'
-        TF_PATH = 'pdf_coverter_app'
+        TF_PATH = '.'
     }
 
     stages {
@@ -63,7 +63,7 @@ pipeline {
         stage ('Terraform Init') {
             agent {
                 docker {
-                    image 'hashicorp/terraform:latest'
+                    image 'hashicorp/terraform:1.5.7'
                     args '--entrypoint="" -u root:root'
                 }
             }
@@ -81,14 +81,14 @@ pipeline {
         stage ('Terraform Apply') {
             agent {
                 docker {
-                    image 'hashicorp/terraform:latest'
+                    image 'hashicorp/terraform:1.5.7'
                     args '--entrypoint="" -u root:root'
                 }
             }
             steps {
                 echo 'Applying Terraform configuration...'
                 
-                dir(env.TF){
+                dir(env.TF_PATH){
                     sh 'terraform apply -auto-approve'
                 }
             }
@@ -97,7 +97,7 @@ pipeline {
         stage('Post-Deployment Info') {
             agent {
                 docker {
-                    image 'hashicorp/terraform:latest'
+                    image 'hashicorp/terraform:1.5.7'
                     args '--entrypoint="" -u root:root'
                 }
             }

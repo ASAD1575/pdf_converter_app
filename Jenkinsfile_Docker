@@ -63,7 +63,8 @@ pipeline {
         stage ('Terraform Init') {
             agent {
                 docker {
-                    image 'hashicorp/terraform:1.5.7'
+                    image 'hashicorp/terraform:latest'
+                    args '--entrypoint="" -u root:root'
                 }
             }
             steps {
@@ -80,7 +81,8 @@ pipeline {
         stage ('Terraform Apply') {
             agent {
                 docker {
-                    image 'hashicorp/terraform:1.5.7'
+                    image 'hashicorp/terraform:latest'
+                    args '--entrypoint="" -u root:root'
                 }
             }
             steps {
@@ -95,7 +97,8 @@ pipeline {
         stage('Post-Deployment Info') {
             agent {
                 docker {
-                    image 'hashicorp/terraform:1.5.7'
+                    image 'hashicorp/terraform:latest'
+                    args '--entrypoint="" -u root:root'
                 }
             }
             steps {

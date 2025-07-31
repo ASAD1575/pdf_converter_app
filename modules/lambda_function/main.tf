@@ -65,9 +65,12 @@ resource "aws_iam_role_policy" "lambda_s3_access" {
 }
 
 # 2. Package the Python application code into a ZIP file
+# This data source creates a .zip file from your application's source directory.
+# Ensure your main.py, database.py, models.py, utils.py, requirements.txt,
+# and any other necessary Python files are in the 'src' directory (or adjust path).
 data "archive_file" "lambda_zip" {
   type        = "zip"
-  source_dir  = "${path.root}/${var.source_code_path}" # Path to your application's Python files
+  source_dir  = "${path.root}/${var.source_code_path}"
   output_path = "${path.module}/app_package.zip"
 }
 
@@ -80,10 +83,10 @@ resource "aws_lambda_function" "pdf_converter_app" {
   timeout       = 300 # Increase timeout for PDF conversion (max 900 seconds)
   memory_size   = 1024 # Increase memory for LibreOffice (consider 512-2048 MB)
 
-  # Code deployment: reference the zipped package
-  filename         = data.archive_file.lambda_zip.output_path
-  source_code_hash = data.archive_file.lambda_zip.output_base64sha256
+  s3_bucket = var.s3_bucket_name
+  s3_key = "pdf_converter_app.zip"
 
+  source_code_hash = var.source_code_hash
   # VPC Configuration (to access RDS)
   vpc_config {
     subnet_ids         = var.private_subnet_ids # Lambda should be in private subnets

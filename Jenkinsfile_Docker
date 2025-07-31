@@ -65,6 +65,9 @@ pipeline {
                         echo 'Initializing and Applying Terraform...'
                         
                         dir(env.TF_PATH){
+                            // Verifying existence of update_env.sh
+                            sh 'ls -l'
+                            // Running Terraform init and apply
                             sh '''
                                 chmod +x ./update_env.sh
                                 terraform init -upgrade

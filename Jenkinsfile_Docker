@@ -25,12 +25,6 @@ pipeline {
 
         // Stage: Install Python Dependencies for Lambda Deployment
         stage('Install Build Tools & Dependencies') {
-            agent {
-                docker {
-                    image 'hashicorp/terraform:1.5.7'
-                    args '--entrypoint="" -u root:root'
-                }
-            }
             steps {
                 script {
                     echo 'Updating package list and installing unzip...'

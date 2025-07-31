@@ -1,5 +1,10 @@
 pipeline {
-    agent any
+    agent {
+        docker {
+            image 'python:3.9-slim'
+            args '-u root'
+        }
+    }
 
     environment {
         AWS_ACCOUNT_ID = '375299695019'
@@ -19,20 +24,27 @@ pipeline {
         }
 
         // Stage: Install Python Dependencies for Lambda Deployment
-        stage('Install Lambda Dependencies') {
+        stage('Install Build Tools & Dependencies') {
             steps {
                 script {
-                    echo 'Installing Python dependencies for Lambda deployment package...'
-                    dir("${env.APP_SOURCE_PATH}") {
-                        sh '''
-                            sudo apt-get update -y
-                            sudo ap-get install python3-pip -y
-                            mkdir -p package
-                            python3 -m pip install --target ./package -r requirements.txt
-                            find . -name "__pycache__" -type d -exec rm -rf {} +
+                    echo 'Updating package list and installing unzip...'
+                    sh 'apt-get update && apt-get install -y unzip wget'
 
-                        '''
+                    echo 'Installing AWS CLI and Python dependencies...'
+                    // Use pip to install awscli, which is required by the withAWS step
+                    sh 'pip install awscli'
+
+                    // Install Python dependencies for the Lambda deployment package
+                    dir("${env.APP_SOURCE_PATH}") {
+                        sh 'pip install --target ./package -r requirements.txt'
+                        sh 'find . -name "__pycache__" -type d -exec rm -rf {} +'
                     }
+
+                    echo 'Installing Terraform...'
+                    // Download and install a specific version of Terraform
+                    sh 'wget https://releases.hashicorp.com/terraform/1.2.9/terraform_1.2.9_linux_amd64.zip'
+                    sh 'unzip terraform_1.2.9_linux_amd64.zip'
+                    sh 'mv terraform /usr/local/bin/'
                 }
             }
         }
@@ -51,7 +63,7 @@ pipeline {
                 }
             }
         }
-        
+
         stage ('Terraform Init') {
             steps {
                 script {

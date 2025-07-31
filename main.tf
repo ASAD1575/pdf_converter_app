@@ -49,7 +49,7 @@ module "lambda_function" {
   source                    = "./modules/lambda_function"
   region                    = "us-east-1"
   function_name             = "pdfconverter"
-  source_code_path          = "/home/kali/Documents/terraform_practice/terraform_practice_projects/PDF_converter_app/pdf_converter_FastAPI_app/"
+  source_code_path          = "pdf_converter_FastAPI_app/"
   private_subnet_ids        = module.vpc.private_subnet_ids
   app_security_group_id     = module.security_group.app_security_group_id
   libreoffice_layer_arn     = "arn:aws:lambda:us-east-1:764866452798:layer:libreoffice-gzip:1"

@@ -1,10 +1,5 @@
 pipeline {
-    agent {
-        docker {
-            image 'python:3.9-slim'
-            args '-u root'
-        }
-    }
+    agent any
 
     environment {
         AWS_ACCOUNT_ID = '375299695019'
@@ -25,6 +20,12 @@ pipeline {
 
         // Stage: Install Python Dependencies for Lambda Deployment
         stage('Install Build Tools & Dependencies') {
+            agent {
+                docker {
+                    image 'python:3.9-slim'
+                    args '-u root'
+                }
+            }
             steps {
                 script {
                     echo 'Updating package list and installing unzip...'

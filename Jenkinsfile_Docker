@@ -9,10 +9,12 @@ pipeline {
     }
 
     stages {
-
-        stage('Cloning Git') {
+        stage('Checkout Source') {
             steps {
-                checkout([$class: 'GitSCM', branches: [[name: '*/main']], doGenerateSubmoduleConfigurations: false, extensions: [], submoduleCfg: [], userRemoteConfigs: [[credentialsId: '', url: 'https://github.com/ASAD1575/pdf_converter_app.git']]])     
+                script {
+                    echo 'Checking out source code from SCM...'
+                    checkout scm
+                }
             }
         }
 

@@ -66,6 +66,7 @@ pipeline {
                         
                         dir(env.TF_PATH){
                             sh '''
+                                chmod +x ./update_env.sh
                                 terraform init -upgrade
                                 terraform apply -auto-approve
                             '''

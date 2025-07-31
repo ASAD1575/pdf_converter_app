@@ -65,11 +65,12 @@ pipeline {
                         echo 'Initializing and Applying Terraform...'
                         
                         dir(env.TF_PATH){
+                            // Grant execute permission to update_env.sh
+                            sh 'chmod +x ./update_env.sh'
                             // Verifying existence of update_env.sh
-                            sh 'ls -l'
+                            sh 'ls -l update_env.sh'
                             // Running Terraform init and apply
                             sh '''
-                                chmod +x ./update_env.sh
                                 terraform init -upgrade
                                 terraform apply -auto-approve
                             '''

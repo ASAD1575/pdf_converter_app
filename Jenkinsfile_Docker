@@ -61,7 +61,7 @@ pipeline {
             }
         }
 
-        stage ('Terraform Init') {
+        stage ('Terraform Init & Apply') {
             agent {
                 docker {
                     image 'hashicorp/terraform:1.5.7'
@@ -73,24 +73,11 @@ pipeline {
                     echo 'Initializing Terraform...'
                     
                     dir(env.TF){
-                        sh 'terraform init -upgrade'
+                        sh '''
+                        terraform init -upgrade
+                        terraform apply -auto-approve
+                        '''
                     }
-                }
-            }
-        }
-
-        stage ('Terraform Apply') {
-            agent {
-                docker {
-                    image 'hashicorp/terraform:1.5.7'
-                    args '--entrypoint="" -u root:root'
-                }
-            }
-            steps {
-                echo 'Applying Terraform configuration...'
-                
-                dir(env.TF_PATH){
-                    sh 'terraform apply -auto-approve'
                 }
             }
         }

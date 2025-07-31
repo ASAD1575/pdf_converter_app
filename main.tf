@@ -97,7 +97,7 @@ resource "null_resource" "update_local_env" {
   ]
 
   provisioner "local-exec" {
-    command = "${path.module}/update_env.sh \"${module.rds.rds_endpoint}\" \"${module.rds.db_name}\" \"${module.rds.db_username}\" \"${module.rds.db_password}\" \"${module.rds.db_port}\" \"${module.s3_bucket.s3_bucket_id}\""
+    command = "./update_env.sh \"${module.rds.rds_endpoint}\" \"${module.rds.db_name}\" \"${module.rds.db_username}\" \"${module.rds.db_password}\" \"${module.rds.db_port}\" \"${module.s3_bucket.s3_bucket_id}\""
     working_dir = path.module
   }
 }

@@ -11,12 +11,6 @@ pipeline {
     }
 
     stages {
-        stage('Cloning Git') {
-            steps {
-                checkout([$class: 'GitSCM', branches: [[name: '*/main']], doGenerateSubmoduleConfigurations: false, extensions: [], submoduleCfg: [], userRemoteConfigs: [[credentialsId: '', url: 'https://github.com/ASAD1575/pdf_converter_app']]])     
-            }
-        }
-
         // Stage: Install Python Dependencies for Lambda Deployment
         stage('Install Lambda Dependencies') {
             steps {

@@ -70,22 +70,22 @@ pipeline {
                 }
             }
         }
+    }  
 
-        post {
-            always {
-                script {
-                    echo 'Cleaning up workspace...'
-                    // cleanWs() // Uncomment to clean the workspace after every build
-                }
-            }
-            
-            failure {
-                echo 'Pipeline failed! Check logs for errors.'
-            }
-            
-            success {
-                echo 'Pipeline completed successfully!'
+    post {
+        always {
+            script {
+                echo 'Cleaning up workspace...'
+                // cleanWs() // Uncomment to clean the workspace after every build
             }
         }
-    }     
+            
+        failure {
+            echo 'Pipeline failed! Check logs for errors.'
+        }
+            
+        success {
+            echo 'Pipeline completed successfully!'
+        }
+    } 
 }

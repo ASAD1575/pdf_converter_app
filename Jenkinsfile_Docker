@@ -72,7 +72,7 @@ pipeline {
                 script {
                     echo 'Initializing Terraform...'
                     
-                    dir(env.TF){
+                    dir(env.TF_PATH){
                         sh '''
                         terraform init -upgrade
                         terraform apply -auto-approve

@@ -46,14 +46,15 @@ pipeline {
 
         stage('AWS Login') {
             steps {
-                withCredentials([usernamePassword(credentialsId: 'aws-creds', usernameVariable: 'AWS_ACCESS_KEY_ID', passwordVariable: 'AWS_SECRET_ACCESS_KEY')]) {
-                    script {
-                        // Export credentials as environment variables
-                        env.AWS_ACCESS_KEY_ID = "${AWS_ACCESS_KEY_ID}"
-                        env.AWS_SECRET_ACCESS_KEY = "${AWS_SECRET_ACCESS_KEY}"
-                        
-                        // Optional: confirm login
-                        sh 'aws sts get-caller-identity --region $AWS_REGION'
+                script {
+                    echo 'Logging into AWS and verifying credentials...'
+                    // Use withCredentials to securely fetch and expose the secrets
+                    withCredentials([
+                        string(credentialsId: 'AWS_ACCESS_KEY_ID', variable: 'AWS_ACCESS_KEY_ID'),
+                        string(credentialsId: 'AWS_SECRET_ACCESS_KEY', variable: 'AWS_SECRET_ACCESS_KEY')
+                    ]) {
+                        // The variables are now available and will be used by the AWS CLI
+                        sh 'aws sts get-caller-identity'
                     }
                 }
             }

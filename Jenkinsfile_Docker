@@ -64,7 +64,6 @@ pipeline {
             agent {
                 docker {
                     image 'hashicorp/terraform:1.5.7'
-                    args '--entrypoint="" -u root:root'
                 }
             }
             steps {
@@ -82,7 +81,6 @@ pipeline {
             agent {
                 docker {
                     image 'hashicorp/terraform:1.5.7'
-                    args '--entrypoint="" -u root:root'
                 }
             }
             steps {
@@ -98,7 +96,6 @@ pipeline {
             agent {
                 docker {
                     image 'hashicorp/terraform:1.5.7'
-                    args '--entrypoint="" -u root:root'
                 }
             }
             steps {

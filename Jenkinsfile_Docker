@@ -1,67 +1,62 @@
+// A Jenkinsfile for a pipeline that builds, tests, and deploys a FastAPI application
+// using Terraform, with all stages running inside Docker containers.
 pipeline {
+    // Defines that a Jenkins agent will be used for the entire pipeline
+    // unless a stage overrides it. We'll use Docker agents in each stage,
+    // so `agent any` is fine here.
     agent any
 
+    // Defines environment variables available to all stages
     environment {
         AWS_ACCOUNT_ID = '375299695019'
         AWS_DEFAULT_REGION = 'us-east-1'
         APP_SOURCE_PATH = 'pdf_converter_FastAPI_app/'
-        TF_PATH = '.'
+        TF_PATH = '.' // Defines the path to your Terraform configuration files
     }
 
     stages {
+        // This stage checks out the source code from SCM.
+        // It's automatically handled by Jenkins for Declarative pipelines
+        // on the agent, but explicitly including it is good practice.
         stage('Checkout Source') {
             steps {
-                script {
-                    echo 'Checking out source code from SCM...'
-                    checkout scm
-                }
+                echo 'Checking out source code from SCM...'
+                checkout scm
             }
         }
 
-        // Stage: Install Python Dependencies for Lambda Deployment
+        // Stage to install Python dependencies for the Lambda function
         stage('Install Build Tools & Dependencies') {
+            // Specifies that this stage will run inside a `python:3.9-slim` Docker container
             agent {
                 docker {
                     image 'python:3.9-slim'
-                    args '-u root'
+                    args '-u root' // This ensures commands run as the root user inside the container
                 }
             }
             steps {
-                script {
-                    echo 'Updating package list and installing unzip...'
-                    sh 'apt-get update && apt-get install -y unzip wget'
+                echo 'Updating package list and installing unzip...'
+                sh 'apt-get update && apt-get install -y unzip wget'
 
-                    echo 'Installing AWS CLI and Python dependencies...'
-                    // Use pip to install awscli, which is required by the withAWS step
-                    sh 'pip install awscli'
+                echo 'Installing AWS CLI and Python dependencies...'
+                sh 'pip install awscli'
 
-                    // Install Python dependencies for the Lambda deployment package
-                    dir("${env.APP_SOURCE_PATH}") {
-                        sh 'pip install --target ./package --upgrade -r requirements.txt'
-                        sh 'pip install --upgrade pip'
-                        sh 'find . -name "__pycache__" -type d -print0 | xargs -0 rm -rf || true'
-                    }
+                // Installs Python dependencies into a 'package' directory
+                // for the Lambda deployment
+                dir("${env.APP_SOURCE_PATH}") {
+                    sh 'pip install --target ./package --upgrade -r requirements.txt'
+                    sh 'pip install --upgrade pip'
+                    // Clean up any __pycache__ directories
+                    sh 'find . -name "__pycache__" -type d -print0 | xargs -0 rm -rf || true'
                 }
             }
         }
 
-        stage('AWS Login') {
-            steps {
-                script {
-                    echo 'Logging into AWS and verifying credentials...'
-                    // Use withCredentials to securely fetch and expose the secrets
-                    withCredentials([
-                        string(credentialsId: 'AWS_ACCESS_KEY_ID', variable: 'AWS_ACCESS_KEY_ID'),
-                        string(credentialsId: 'AWS_SECRET_ACCESS_KEY', variable: 'AWS_SECRET_ACCESS_KEY')
-                    ]) {
-                        // The variables are now available and will be used by the AWS CLI
-                        sh 'aws sts get-caller-identity'
-                    }
-                }
-            }
-        }
+        // --- STAGES BELOW THIS POINT HAVE BEEN UPDATED ---
 
-        stage ('Terraform Init & Apply') {
+        // Stage for Terraform initialization
+        stage ('Terraform Init') {
+            // This stage will run inside a `hashicorp/terraform:1.5.7` Docker container
             agent {
                 docker {
                     image 'hashicorp/terraform:1.5.7'
@@ -69,38 +64,60 @@ pipeline {
                 }
             }
             steps {
-                withCredentials([
-                        string(credentialsId: 'AWS_ACCESS_KEY_ID', variable: 'AWS_ACCESS_KEY_ID'),
-                        string(credentialsId: 'AWS_SECRET_ACCESS_KEY', variable: 'AWS_SECRET_ACCESS_KEY')
-                    ]) 
-                script {
-                    echo 'Initializing Terraform...'
-                    
-                    dir(env.TF_PATH){
-                        sh 
-                        '''
-                            terraform init -upgrade
-                            terraform apply -auto-approve
-                        '''
-                    }
-                }
-            }
-        }
-        
-        
-        stage('Post-Deployment Info') {
-            agent {
-                docker {
-                    image 'hashicorp/terraform:1.5.7'
-                    args '--entrypoint="" -u root:root'
-                }
-            }
-            steps {
+                // The withCredentials block is now inside the stage,
+                // ensuring the AWS variables are set for Terraform
                 withCredentials([
                     string(credentialsId: 'AWS_ACCESS_KEY_ID', variable: 'AWS_ACCESS_KEY_ID'),
                     string(credentialsId: 'AWS_SECRET_ACCESS_KEY', variable: 'AWS_SECRET_ACCESS_KEY')
-                ]) 
-                script {    
+                ]) {
+                    echo 'Initializing Terraform...'
+                    dir(env.TF_PATH){
+                        sh 'terraform init -upgrade'
+                    }
+                }
+            }
+        }
+
+        // Stage for applying the Terraform configuration
+        stage ('Terraform Apply') {
+            // This stage will also use the Terraform Docker container
+            agent {
+                docker {
+                    image 'hashicorp/terraform:1.5.7'
+                    args '--entrypoint="" -u root:root'
+                }
+            }
+            steps {
+                // The withCredentials block is now inside the stage,
+                // ensuring the AWS variables are set for Terraform
+                withCredentials([
+                    string(credentialsId: 'AWS_ACCESS_KEY_ID', variable: 'AWS_ACCESS_KEY_ID'),
+                    string(credentialsId: 'AWS_SECRET_ACCESS_KEY', variable: 'AWS_SECRET_ACCESS_KEY')
+                ]) {
+                    echo 'Applying Terraform configuration...'
+                    dir(env.TF_PATH){
+                        sh 'terraform apply -auto-approve'
+                    }
+                }
+            }
+        }
+        
+        // Stage for fetching and displaying deployment information
+        stage('Post-Deployment Info') {
+            // This stage will also use the Terraform Docker container
+            agent {
+                docker {
+                    image 'hashicorp/terraform:1.5.7'
+                    args '--entrypoint="" -u root:root'
+                }
+            }
+            steps {
+                // The withCredentials block is now inside the stage,
+                // ensuring the AWS variables are set for Terraform
+                withCredentials([
+                    string(credentialsId: 'AWS_ACCESS_KEY_ID', variable: 'AWS_ACCESS_KEY_ID'),
+                    string(credentialsId: 'AWS_SECRET_ACCESS_KEY', variable: 'AWS_SECRET_ACCESS_KEY')
+                ]) {
                     echo 'Fetching deployment outputs...'
                     dir(env.TF_PATH) {
                         def apiGatewayUrl = sh(returnStdout: true, script: 'terraform output -raw api_gateway_url').trim()
@@ -111,12 +128,11 @@ pipeline {
         }
     }  
 
+    // Post-build actions
     post {
         always {
-            script {
-                echo 'Cleaning up workspace...'
-                // cleanWs() // Uncomment to clean the workspace after every build
-            }
+            echo 'Cleaning up workspace...'
+            // cleanWs() // Uncomment to clean the workspace after every build
         }
             
         failure {

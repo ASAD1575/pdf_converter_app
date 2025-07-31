@@ -28,7 +28,6 @@ pipeline {
                 }
             }
             steps {
-                // The following steps are simple shell commands and don't need a `script` block.
                 echo 'Updating package list and installing unzip...'
                 sh 'apt-get update && apt-get install -y unzip wget'
 
@@ -37,10 +36,16 @@ pipeline {
 
                 // Installs Python dependencies into a 'package' directory for lambda deployment
                 dir("${env.APP_SOURCE_PATH}") {
-                    sh 'pip install --target ./package --upgrade -r requirements.txt'
+
+                    echo "Installing dependencies into ${env.APP_SOURCE_PATH}..."
+                    sh 'pip install --target . --upgrade -r requirements.txt'
                     sh 'pip install --upgrade pip'
                     // Clean up any __pycache__ directories
                     sh 'find . -name "__pycache__" -type d -print0 | xargs -0 rm -rf || true'
+
+                    // Create the deployment package zip file
+                    echo "Creating deployment package zip..."
+                    sh 'zip -r ../pdf_converter_app.zip .'
                 }
             }
         }
@@ -65,14 +70,20 @@ pipeline {
                         echo 'Initializing and Applying Terraform...'
                         
                         dir(env.TF_PATH){
-                            // Grant execute permission to update_env.sh
-                            sh 'chmod +x ./update_env.sh'
-                            // Verifying existence of update_env.sh
-                            sh 'ls -l update_env.sh'
-                            // Running Terraform init and apply
+                            // Get the hash of the zip file to trigger a new deployment
+                            def fileHash = sh(returnStdout: true, script: "sha256sum ../pdf_converter_app.zip | awk '{print \$1}'").trim()
+                            
+                            // Get the S3 bucket name from a terraform output (or hardcode it if necessary)
+                            def s3BucketName = 'pdflambdabucket1575'
+
+                            // Upload the zip file to S3
+                            echo "Uploading pdf_converter_app.zip to S3 bucket ${s3BucketName}..."
+                            sh "aws s3 cp ../pdf_converter_app.zip s3://${s3BucketName}/pdf_converter_app.zip"
+
+                            // Running Terraform init and apply with variables
                             sh '''
                                 terraform init -upgrade
-                                terraform apply -auto-approve
+                                terraform apply -auto-approve -var="source_code_hash=${fileHash}"
                             '''
                         }
                     }

@@ -15,7 +15,6 @@ pipeline {
 
     stages {
         // This stage checks out the source code from SCM.
-        // It's automatically handled by Jenkins for Declarative pipelines.
         stage('Checkout Source') {
             steps {
                 echo 'Checking out source code from SCM...'
@@ -33,6 +32,7 @@ pipeline {
                 }
             }
             steps {
+                // The following steps are simple shell commands and don't need a `script` block.
                 echo 'Updating package list and installing unzip...'
                 sh 'apt-get update && apt-get install -y unzip wget'
 
@@ -60,19 +60,21 @@ pipeline {
                 }
             }
             steps {
-                // The withCredentials block must wrap the commands that need the credentials.
-                withCredentials([
-                    string(credentialsId: 'AWS_ACCESS_KEY_ID', variable: 'AWS_ACCESS_KEY_ID'),
-                    string(credentialsId: 'AWS_SECRET_ACCESS_KEY', variable: 'AWS_SECRET_ACCESS_KEY')
-                ]) {
-                    echo 'Initializing and Applying Terraform...'
-                    
-                    // The multi-line string must be on the same line as 'sh'
-                    dir(env.TF_PATH){
-                        sh '''
-                            terraform init -upgrade
-                            terraform apply -auto-approve
-                        '''
+                // The `script` block is necessary here because of the nested withCredentials step.
+                script {
+                    // The withCredentials block must wrap the commands that need the credentials.
+                    withCredentials([
+                        string(credentialsId: 'AWS_ACCESS_KEY_ID', variable: 'AWS_ACCESS_KEY_ID'),
+                        string(credentialsId: 'AWS_SECRET_ACCESS_KEY', variable: 'AWS_SECRET_ACCESS_KEY')
+                    ]) {
+                        echo 'Initializing and Applying Terraform...'
+                        
+                        dir(env.TF_PATH){
+                            sh '''
+                                terraform init -upgrade
+                                terraform apply -auto-approve
+                            '''
+                        }
                     }
                 }
             }
@@ -88,15 +90,20 @@ pipeline {
                 }
             }
             steps {
-                // The withCredentials block must wrap the commands that need the credentials.
-                withCredentials([
-                    string(credentialsId: 'AWS_ACCESS_KEY_ID', variable: 'AWS_ACCESS_KEY_ID'),
-                    string(credentialsId: 'AWS_SECRET_ACCESS_KEY', variable: 'AWS_SECRET_ACCESS_KEY')
-                ]) {    
-                    echo 'Fetching deployment outputs...'
-                    dir(env.TF_PATH) {
-                        def apiGatewayUrl = sh(returnStdout: true, script: 'terraform output -raw api_gateway_url').trim()
-                        echo "Deployment Complete! Your application is accessible at: ${apiGatewayUrl}"
+                // This stage requires a `script` block because we are assigning the output
+                // of a shell command to a Groovy variable (`def apiGatewayUrl = ...`).
+                script {
+                    // The withCredentials block must wrap the commands that need the credentials.
+                    withCredentials([
+                        string(credentialsId: 'AWS_ACCESS_KEY_ID', variable: 'AWS_ACCESS_KEY_ID'),
+                        string(credentialsId: 'AWS_SECRET_ACCESS_KEY', variable: 'AWS_SECRET_ACCESS_KEY')
+                    ]) {    
+                        echo 'Fetching deployment outputs...'
+                        dir(env.TF_PATH) {
+                            // Assigning the output to a variable requires a `script` block.
+                            def apiGatewayUrl = sh(returnStdout: true, script: 'terraform output -raw api_gateway_url').trim()
+                            echo "Deployment Complete! Your application is accessible at: ${apiGatewayUrl}"
+                        }
                     }
                 }
             }

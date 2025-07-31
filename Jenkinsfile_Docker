@@ -1,0 +1,91 @@
+pipeline {
+    agent any
+
+    environment {
+        AWS_ACCOUNT_ID = '375299695019'
+        AWS_DEFAULT_REGION = 'us-east-1'
+        AWS_ACCESS_KEY_ID = credentials ('AWS_ACCESS_KEY_ID')
+        AWS_SECRET_ACCESS_KEY = credentials ('AWS_SECRET_ACCESS_KEY')
+        APP_SOURCE_PATH = 'pdf_converter_FastAPI_app/'
+        TF_PATH = '.'
+    }
+
+    stages {
+
+        stage ('checkout') {
+            steps {
+                echo 'Checkout Source code from SCM...'
+                checkout scm
+            }
+        }
+
+        stage ('Installing Dependencies for Lambda Function...') {
+            steps {
+                script{
+                    echo 'Installing Dependencies for Lambda Function...'
+
+                    dir("${env.TF_PATH}/${env.APP_SOURCE_PATH}"){
+                        sh 
+                        '''
+                            mkdir -p package
+                            pip install --target ./package -r requirements.txt
+                            find . -name "__pycache__" -type d -exec rm -rf {} +
+
+                        '''
+                    }
+                }
+            }
+        }
+
+        stage ('Terraform Init') {
+            steps {
+                script {
+                    echo 'Initializing Terraform...'
+                    
+                    dir(env.TF){
+                        sh 'terraform init -upgrade'
+                    }
+                }
+            }
+        }
+
+        stage ('Terraform Apply') {
+            steps {
+                echo 'Applying Terraform configuration...'
+                
+                dir(env.TF){
+                    sh 'terraform apply -auto-approve'
+                }
+            }
+        }
+        
+        stage('Post-Deployment Info') {
+            steps {
+                script {
+                    echo 'Fetching deployment outputs...'
+                    dir(env.TF_PATH) {
+                        def apiGatewayUrl = sh(returnStdout: true, script: 'terraform output -raw api_gateway_url').trim()
+                        echo "Deployment Complete! Your application is accessible at: ${apiGatewayUrl}"
+                    }
+                }
+            }
+        }
+
+        post {
+            always {
+                script {
+                    echo 'Cleaning up workspace...'
+                    // cleanWs() // Uncomment to clean the workspace after every build
+                }
+            }
+            
+            failure {
+                echo 'Pipeline failed! Check logs for errors.'
+            }
+            
+            success {
+                echo 'Pipeline completed successfully!'
+            }
+        }
+    }     
+}

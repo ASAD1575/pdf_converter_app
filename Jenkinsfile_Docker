@@ -68,7 +68,7 @@ pipeline {
                             sh '''
                                 chmod +x ./update_env.sh
                                 terraform init -upgrade
-                                terraform destroy -auto-approve
+                                terraform apply -auto-approve
                             '''
                         }
                     }
@@ -76,46 +76,46 @@ pipeline {
             }
         }
         
-        // // Stage for fetching and displaying deployment information
-        // stage('Post-Deployment Info') {
-        //     // This stage will also use the Terraform Docker container
-        //     agent {
-        //         docker {
-        //             image 'hashicorp/terraform:1.5.7'
-        //             args '--entrypoint="" -u root:root'
-        //         }
-        //     }
-        //     steps {
-        //         script {
-        //             withCredentials([
-        //                 string(credentialsId: 'AWS_ACCESS_KEY_ID', variable: 'AWS_ACCESS_KEY_ID'),
-        //                 string(credentialsId: 'AWS_SECRET_ACCESS_KEY', variable: 'AWS_SECRET_ACCESS_KEY')
-        //             ]) {    
-        //                 echo 'Fetching deployment outputs...'
-        //                 dir(env.TF_PATH) {
-        //                     // Assigning the output to a variable requires a `script` block.
-        //                     def apiGatewayUrl = sh(returnStdout: true, script: 'terraform output -raw api_gateway_url').trim()
-        //                     echo "Deployment Complete! Your application is accessible at: ${apiGatewayUrl}"
-        //                 }
-        //             }
-        //         }
-        //     }
-        // }
+        // Stage for fetching and displaying deployment information
+        stage('Post-Deployment Info') {
+            // This stage will also use the Terraform Docker container
+            agent {
+                docker {
+                    image 'hashicorp/terraform:1.5.7'
+                    args '--entrypoint="" -u root:root'
+                }
+            }
+            steps {
+                script {
+                    withCredentials([
+                        string(credentialsId: 'AWS_ACCESS_KEY_ID', variable: 'AWS_ACCESS_KEY_ID'),
+                        string(credentialsId: 'AWS_SECRET_ACCESS_KEY', variable: 'AWS_SECRET_ACCESS_KEY')
+                    ]) {    
+                        echo 'Fetching deployment outputs...'
+                        dir(env.TF_PATH) {
+                            // Assigning the output to a variable requires a `script` block.
+                            def apiGatewayUrl = sh(returnStdout: true, script: 'terraform output -raw api_gateway_url').trim()
+                            echo "Deployment Complete! Your application is accessible at: ${apiGatewayUrl}"
+                        }
+                    }
+                }
+            }
+        }
     }  
 
     // Post-build actions
-    // post {
-    //     always {
-    //         echo 'Cleaning up workspace...'
-    //         // cleanWs() // Uncomment to clean the workspace after every build
-    //     }
+    post {
+        always {
+            echo 'Cleaning up workspace...'
+            // cleanWs() // Uncomment to clean the workspace after every build
+        }
             
-    //     failure {
-    //         echo 'Pipeline failed! Check logs for errors.'
-    //     }
+        failure {
+            echo 'Pipeline failed! Check logs for errors.'
+        }
             
-    //     success {
-    //         echo 'Pipeline completed successfully!'
-    //     }
-    // } 
+        success {
+            echo 'Pipeline completed successfully!'
+        }
+    } 
 }

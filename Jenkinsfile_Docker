@@ -4,17 +4,16 @@ pipeline {
     environment {
         AWS_ACCOUNT_ID = '375299695019'
         AWS_DEFAULT_REGION = 'us-east-1'
+        AWS_SECRET_ACCESS_KEY = credentials('AWS_SECRET_ACCESS_KEY')
+        AWS_ACCESS_KEY_ID  = credentials('AWS_ACCESS_KEY_ID')
         APP_SOURCE_PATH = 'pdf_converter_FastAPI_app/'
         TF_PATH = 'pdf_coverter_app'
     }
 
     stages {
-        stage('Checkout Source') {
+        stage('Cloning Git') {
             steps {
-                script {
-                    echo 'Checking out source code from SCM...'
-                    checkout scm
-                }
+                checkout([$class: 'GitSCM', branches: [[name: '*/main']], doGenerateSubmoduleConfigurations: false, extensions: [], submoduleCfg: [], userRemoteConfigs: [[credentialsId: '', url: 'https://github.com/ASAD1575/pdf_converter_app']]])     
             }
         }
 

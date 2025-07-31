@@ -70,13 +70,19 @@ pipeline {
             }
             steps {
                 script {
-                    echo 'Initializing Terraform...'
+                    withCredentials([
+                        string(credentialsId: 'AWS_ACCESS_KEY_ID', variable: 'AWS_ACCESS_KEY_ID'),
+                        string(credentialsId: 'AWS_SECRET_ACCESS_KEY', variable: 'AWS_SECRET_ACCESS_KEY')
+                    ]) {
+                        echo 'Initializing Terraform...'
                     
-                    dir(env.TF_PATH){
-                        sh '''
-                        terraform init -upgrade
-                        terraform apply -auto-approve
-                        '''
+                        dir(env.TF_PATH){
+                            sh 
+                            '''
+                                terraform init -upgrade
+                                terraform apply -auto-approve
+                            '''
+                        }
                     }
                 }
             }
@@ -91,6 +97,11 @@ pipeline {
             }
             steps {
                 script {
+                    withCredentials([
+                        string(credentialsId: 'AWS_ACCESS_KEY_ID', variable: 'AWS_ACCESS_KEY_ID'),
+                        string(credentialsId: 'AWS_SECRET_ACCESS_KEY', variable: 'AWS_SECRET_ACCESS_KEY')
+                    ]) {
+                    
                     echo 'Fetching deployment outputs...'
                     dir(env.TF_PATH) {
                         def apiGatewayUrl = sh(returnStdout: true, script: 'terraform output -raw api_gateway_url').trim()

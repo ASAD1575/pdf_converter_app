@@ -1,0 +1,10 @@
+fastapi
+uvicorn
+sqlalchemy
+jinja2
+passlib[bcrypt]
+python-multipart
+docx2pdf
+psycopg2-binary
+python-dotenv
+boto3

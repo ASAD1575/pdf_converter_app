@@ -37,7 +37,7 @@ pipeline {
                     // Install Python dependencies for the Lambda deployment package
                     dir("${env.APP_SOURCE_PATH}") {
                         sh 'pip install --target ./package -r requirements.txt'
-                        sh 'find . -name "__pycache__" -type d -exec rm -rf {} \\;'
+                        sh 'find . -name "__pycache__" -type d -exec rm -rf {} \\; || true'
                     }
                 }
             }

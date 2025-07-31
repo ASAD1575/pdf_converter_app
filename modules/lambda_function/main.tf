@@ -65,9 +65,6 @@ resource "aws_iam_role_policy" "lambda_s3_access" {
 }
 
 # 2. Package the Python application code into a ZIP file
-# This data source creates a .zip file from your application's source directory.
-# Ensure your main.py, database.py, models.py, utils.py, requirements.txt,
-# and any other necessary Python files are in the 'src' directory (or adjust path).
 data "archive_file" "lambda_zip" {
   type        = "zip"
   source_dir  = var.source_code_path # Path to your application's Python files

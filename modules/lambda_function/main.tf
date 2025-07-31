@@ -67,7 +67,7 @@ resource "aws_iam_role_policy" "lambda_s3_access" {
 # 2. Package the Python application code into a ZIP file
 data "archive_file" "lambda_zip" {
   type        = "zip"
-  source_dir  = var.source_code_path # Path to your application's Python files
+  source_dir  = "${path.root}/${var.source_code_path}" # Path to your application's Python files
   output_path = "${path.module}/app_package.zip"
 }
 

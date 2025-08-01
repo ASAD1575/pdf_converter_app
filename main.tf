@@ -56,7 +56,7 @@ module "rds" {
 }
 
 module "lambda_function" {
-  source                    = "./modules/lambda"
+  source                    = "./modules/lambda_function"
   region                    = "us-east-1"
   function_name             = "pdfconverter"
   private_subnet_ids        = module.vpc.private_subnet_ids

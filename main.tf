@@ -5,6 +5,12 @@ terraform {
       version = "~> 6.6.0"
     }
   }
+  backend "s3" {
+    bucket         = "pdflambdabucket1575"
+    key            = "terraform.tfstate"
+    region         = "us-east-1"
+    dynamodb_table = "terraform-state-lock-table"
+  }
 }
 
 # Configure the AWS provider
@@ -21,13 +27,6 @@ module "vpc" {
 module "security_group" {
   source = "./modules/security_group"
   vpc_id = module.vpc.vpc_id
-}
-
-module "s3_bucket" {
-  source            = "./modules/s3" # Corrected source from "./modules/s3"
-  s3_bucket_name    = "pdflambdabucket1575" # Corrected variable name from s3_bucket_name
-  region            = "us-east-1"
-  # This module is expected to output: bucket_id, bucket_arn
 }
 
 module "rds" {
@@ -58,7 +57,7 @@ module "lambda_function" {
   db_password               = module.rds.db_password
   db_port                   = module.rds.db_port
   db_user                   = module.rds.db_username
-  s3_bucket_name            = module.s3_bucket.s3_bucket_id
+  s3_bucket_name            = "pdflambdabucket1575"
   source_code_hash          = var.source_code_hash
 }
 # 
@@ -94,7 +93,6 @@ resource "null_resource" "update_local_env" {
   depends_on = [
     module.rds,
     module.api_gateway,
-    module.s3_bucket,
   ]
 
   provisioner "local-exec" {
@@ -111,9 +109,27 @@ resource "null_resource" "update_local_env" {
       DB_USER="${module.rds.db_username}"
       DB_PASSWORD="${module.rds.db_password}"
       DB_PORT="${module.rds.db_port}"
-      S3_BUCKET_NAME="${module.s3_bucket.s3_bucket_id}"
       EOF
       echo "Successfully updated ./pdf_converter_FastAPI_app/.env"
     EOT
   }
+}
+
+# Create DynamoDB Table for State Locking
+resource "aws_dynamodb_table" "terraform_state_lock" {
+  name         = "terraform-state-lock-table"
+  billing_mode = "PROVISIONED"
+  read_capacity  = 5
+  write_capacity = 5
+  hash_key     = "LockID"
+
+  attribute {
+    name = "LockID"
+    type = "S"
+  }
+
+  tags = {
+    Name = "pdfconverterappdynamodbtable"
+  }
+  
 }

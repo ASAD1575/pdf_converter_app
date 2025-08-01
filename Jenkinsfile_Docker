@@ -68,7 +68,7 @@ pipeline {
             steps {
                 script {
                     echo 'Initializing Terraform...'
-                    sh 'terraform -chdir=terraform init'
+                    sh 'terraform init'
 
                     echo 'Applying Terraform configuration...'
                     // Calculate file hashes
@@ -76,7 +76,7 @@ pipeline {
                     def dependenciesCodeHash = sh(script: "sha256sum dependencies.zip | awk '{print \$1}'", returnStdout: true).trim()
 
                     // Pass hashes to Terraform as variables
-                    sh "terraform -chdir=terraform apply -auto-approve -var='app_zip_file_name=pdf_converter_app.zip' -var='app_code_hash=${appCodeHash}' -var='dependencies_zip_file_name=dependencies.zip' -var='dependencies_code_hash=${dependenciesCodeHash}'"
+                    sh "terraform apply -auto-approve -var='app_zip_file_name=pdf_converter_app.zip' -var='app_code_hash=${appCodeHash}' -var='dependencies_zip_file_name=dependencies.zip' -var='dependencies_code_hash=${dependenciesCodeHash}'"
                 }
             }
         }

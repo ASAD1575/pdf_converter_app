@@ -53,6 +53,7 @@ module "lambda_function" {
   db_user                   = module.rds.db_username
   s3_bucket_name            = "pdflambdabucket1575"
   source_code_hash          = var.source_code_hash
+  s3_key                    = "pdf_converter_app.zip"
 }
 # 
 # Add the API Gateway module

@@ -37,8 +37,9 @@ pipeline {
             agent {
                 docker {
                     image 'python:3.9-slim'
-                    // Use the host user ID for the container, which is now a global env variable
-                    args "-u ${env.hostUserId}:${env.hostGroupId}" 
+                    // Use `args` to specify the user, which is the correct syntax.
+                    // We need to run as root to have permissions for `apt-get`.
+                    args '--user root'
                 }
             }
             steps {
@@ -49,12 +50,16 @@ pipeline {
                     echo "Installing dependencies into ${env.APP_SOURCE_PATH}..."
                     sh 'pip install --target . --upgrade -r requirements.txt'
                     // Clean up any __pycache__ directories
-                    sh 'find . -name "__pycache__" -type d -print0 | xargs -0 rm -rf || true'
+                    sh 'find . -name "__pycache__" -type d | xargs -r rm -rf'
 
                     // Create the deployment package zip file in the root of the workspace
                     echo "Creating deployment package zip..."
                     sh 'zip -r ../pdf_converter_app.zip .'
                 }
+
+                // IMPORTANT: Change ownership of the zipped file back to the Jenkins user.
+                // This ensures the next stage can unstash the file without permission errors.
+                sh "chown ${env.hostUserId}:${env.hostGroupId} pdf_converter_app.zip"
 
                 // Stash the zip file for the next stage
                 echo 'Stashing the deployment package for the next stage...'
@@ -68,8 +73,9 @@ pipeline {
             agent {
                 docker {
                     image 'hashicorp/terraform:1.5.7'
-                    // Use the host user ID for the container
-                    args "--user ${env.hostUserId}:${env.hostGroupId} --entrypoint="
+                    // Use `args` to specify the user, which is the correct syntax.
+                    // We need to run as root to have permissions for `apk` and `pip install`.
+                    args '--user root'
                 }
             }
             steps {
@@ -116,7 +122,9 @@ pipeline {
             agent {
                 docker {
                     image 'hashicorp/terraform:1.5.7'
-                    args "--user ${env.hostUserId}:${env.hostGroupId} --entrypoint="
+                    // Use `args` to specify the user, which is the correct syntax.
+                    // Running as root to ensure full access to the workspace.
+                    args '--user root'
                 }
             }
             steps {

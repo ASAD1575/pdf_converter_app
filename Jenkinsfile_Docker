@@ -1,5 +1,4 @@
 pipeline {
-    // Set agent to 'none' at the pipeline level to allow per-stage agents
     agent none
 
     environment {
@@ -8,17 +7,13 @@ pipeline {
 
     stages {
         stage('Initialize Variables') {
-            // Run this stage on the Jenkins host
             agent any
             steps {
-                sh 'id -u'
-                sh 'id -g'
                 sh 'echo "Jenkins user/group ID: $(id -u):$(id -g)"'
             }
         }
 
         stage('Checkout Source') {
-            // Run this stage on the Jenkins host
             agent any
             steps {
                 echo 'Checking out source code from SCM...'
@@ -35,31 +30,33 @@ pipeline {
                     // Install the zip utility
                     sh 'yum update -y && yum install -y zip'
 
-                    // Create a dedicated directory to build the final Lambda package
-                    sh 'mkdir -p package_content'
+                    // Create dedicated directories for dependencies and app code
+                    sh 'mkdir -p dependencies_content'
+                    sh 'mkdir -p app_content'
 
-                    // Install Python dependencies directly into the package content directory
-                    sh 'pip install --target ./package_content -r pdf_converter_FastAPI_app/requirements.txt'
+                    // Install Python dependencies directly into the dependencies directory
+                    sh 'pip install --target ./dependencies_content -r pdf_converter_FastAPI_app/requirements.txt'
 
-                    // Copy the application code into the package content directory, excluding requirements.txt
-                    sh 'cp -r pdf_converter_FastAPI_app/main.py pdf_converter_FastAPI_app/database.py pdf_converter_FastAPI_app/models.py pdf_converter_FastAPI_app/utils.py pdf_converter_FastAPI_app/static pdf_converter_FastAPI_app/templates pdf_converter_FastAPI_app/uploads ./package_content/'
+                    // Create the dependencies zip file
+                    dir('dependencies_content') {
+                        sh 'zip -r ../dependencies.zip .'
+                    }
 
-                    // Create the final zip file from the package content directory
-                    dir('package_content') {
-                        // Use verbose flag for better logging
-                        sh 'zip -rv ../lambda_package.zip .'
+                    // Copy the application code (excluding requirements.txt) into the app directory
+                    sh 'cp -r pdf_converter_FastAPI_app/main.py pdf_converter_FastAPI_app/database.py pdf_converter_FastAPI_app/models.py pdf_converter_FastAPI_app/utils.py pdf_converter_FastAPI_app/static pdf_converter_FastAPI_app/templates pdf_converter_FastAPI_app/uploads ./app_content/'
+
+                    // Create the application code zip file
+                    dir('app_content') {
+                        sh 'zip -r ../app.zip .'
                     }
                 }
             }
         }
 
         stage('Terraform Init & Apply') {
-            // Run this stage on the Jenkins host
             agent {
                 docker {
                     image 'hashicorp/terraform:1.5.7'
-                    // FIX: Run as root, disable entrypoint, AND provide a public DNS server
-                    // to fix the i/o timeout error when connecting to registry.terraform.io.
                     args '--user 0 --entrypoint="" --dns 8.8.8.8'
                 }
             }
@@ -69,17 +66,17 @@ pipeline {
                     sh 'terraform init'
 
                     echo 'Applying Terraform configuration...'
-                    // Calculate file hash for the combined package
-                    def sourceCodeHash = sh(script: "sha256sum lambda_package.zip | awk '{print \$1}'", returnStdout: true).trim()
+                    // Calculate file hashes for both zip files
+                    def appCodeHash = sh(script: "sha256sum app.zip | awk '{print \$1}'", returnStdout: true).trim()
+                    def dependenciesCodeHash = sh(script: "sha256sum dependencies.zip | awk '{print \$1}'", returnStdout: true).trim()
 
-                    // Pass the single zip file name and its hash to Terraform
-                    sh "terraform apply -auto-approve -var='s3_key=lambda_package.zip' -var='source_code_hash=${sourceCodeHash}'"
+                    // Pass both zip file names and their hashes to Terraform
+                    sh "terraform apply -auto-approve -var='app_zip_file_name=app.zip' -var='app_code_hash=${appCodeHash}' -var='dependencies_zip_file_name=dependencies.zip' -var='dependencies_code_hash=${dependenciesCodeHash}'"
                 }
             }
         }
 
         stage('Post-Deployment Info') {
-            // Run this stage on the Jenkins host
             agent any
             steps {
                 script {

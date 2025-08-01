@@ -9,20 +9,7 @@ pipeline {
         TF_PATH = '.' // Defines the path to your Terraform configuration files
     }
 
-    // Define variables for host user and group ID at the pipeline level
-    // This script block runs before any stages, making the variables global.
-    // The `script` block is required to execute a shell command here.
     stages {
-        stage('Initialize Variables') {
-            steps {
-                script {
-                    env.hostUserId = sh(returnStdout: true, script: 'id -u').trim()
-                    env.hostGroupId = sh(returnStdout: true, script: 'id -g').trim()
-                    echo "Jenkins user/group ID: ${env.hostUserId}:${env.hostGroupId}"
-                }
-            }
-        }
-        
         // This stage checks out the source code from SCM.
         stage('Checkout Source') {
             steps {
@@ -37,33 +24,24 @@ pipeline {
             agent {
                 docker {
                     image 'python:3.9-slim'
-                    // Use `args` to specify the user, which is the correct syntax.
-                    // We need to run as root to have permissions for `apt-get`.
-                    args '--user root'
+                    args '-u root' 
                 }
             }
             steps {
-                echo 'Updating package list and installing zip...'
-                sh 'apt-get update && apt-get install -y zip'
+                // The following steps are simple shell commands and don't need a `script` block.
+                echo 'Updating package list and installing unzip...'
+                sh 'apt-get update && apt-get install -y unzip wget'
 
+                echo 'Installing AWS CLI and Python dependencies...'
+                sh 'pip install awscli'
+
+                // Installs Python dependencies into a 'package' directory for lambda deployment
                 dir("${env.APP_SOURCE_PATH}") {
-                    echo "Installing dependencies into ${env.APP_SOURCE_PATH}..."
-                    sh 'pip install --target . --upgrade -r requirements.txt'
+                    sh 'pip install --target ./package --upgrade -r requirements.txt'
+                    sh 'pip install --upgrade pip'
                     // Clean up any __pycache__ directories
-                    sh 'find . -name "__pycache__" -type d | xargs -r rm -rf'
-
-                    // Create the deployment package zip file in the root of the workspace
-                    echo "Creating deployment package zip..."
-                    sh 'zip -r ../pdf_converter_app.zip .'
+                    sh 'find . -name "__pycache__" -type d -print0 | xargs -0 rm -rf || true'
                 }
-
-                // IMPORTANT: Change ownership of the zipped file back to the Jenkins user.
-                // This ensures the next stage can unstash the file without permission errors.
-                sh "chown ${env.hostUserId}:${env.hostGroupId} pdf_converter_app.zip"
-
-                // Stash the zip file for the next stage
-                echo 'Stashing the deployment package for the next stage...'
-                stash includes: 'pdf_converter_app.zip', name: 'app-code'
             }
         }
 
@@ -73,42 +51,24 @@ pipeline {
             agent {
                 docker {
                     image 'hashicorp/terraform:1.5.7'
-                    // Use `args` to specify the user, which is the correct syntax.
-                    // We need to run as root to have permissions for `apk` and `pip install`.
-                    args '--user root'
+                    args '--entrypoint="" -u root:root'
                 }
             }
             steps {
+                // The `script` block is necessary here because of the nested withCredentials step.
                 script {
+                    // The withCredentials block must wrap the commands that need the credentials.
                     withCredentials([
                         string(credentialsId: 'AWS_ACCESS_KEY_ID', variable: 'AWS_ACCESS_KEY_ID'),
                         string(credentialsId: 'AWS_SECRET_ACCESS_KEY', variable: 'AWS_SECRET_ACCESS_KEY')
                     ]) {
-                        // Unstash the zip file from the previous stage
-                        unstash 'app-code'
-
                         echo 'Initializing and Applying Terraform...'
                         
                         dir(env.TF_PATH){
-                            // The hashicorp/terraform image is based on Alpine Linux, which uses `apk`.
-                            echo 'Installing AWS CLI in the Terraform container...'
-                            sh 'apk update && apk add python3 py3-pip'
-                            sh 'pip install awscli'
-
-                            // Get the hash of the zip file to trigger a new deployment
-                            def fileHash = sh(returnStdout: true, script: "sha256sum pdf_converter_app.zip | awk '{print \$1}'").trim()
-                            
-                            // Get the S3 bucket name from a terraform output (or hardcode it if necessary)
-                            def s3BucketName = 'pdflambdabucket1575'
-
-                            // Upload the zip file to S3
-                            echo "Uploading pdf_converter_app.zip to S3 bucket ${s3BucketName}..."
-                            sh "aws s3 cp pdf_converter_app.zip s3://${s3BucketName}/"
-
-                            // Running Terraform init and apply with variables
                             sh '''
+                                chmod +x ./update_env.sh
                                 terraform init -upgrade
-                                terraform apply -auto-approve -var="source_code_hash=${fileHash}"
+                                terraform destroy -auto-approve
                             '''
                         }
                     }
@@ -116,48 +76,46 @@ pipeline {
             }
         }
         
-        // Stage for fetching and displaying deployment information
-        stage('Post-Deployment Info') {
-            // This stage will also use the Terraform Docker container
-            agent {
-                docker {
-                    image 'hashicorp/terraform:1.5.7'
-                    // Use `args` to specify the user, which is the correct syntax.
-                    // Running as root to ensure full access to the workspace.
-                    args '--user root'
-                }
-            }
-            steps {
-                script {
-                    withCredentials([
-                        string(credentialsId: 'AWS_ACCESS_KEY_ID', variable: 'AWS_ACCESS_KEY_ID'),
-                        string(credentialsId: 'AWS_SECRET_ACCESS_KEY', variable: 'AWS_SECRET_ACCESS_KEY')
-                    ]) {    
-                        echo 'Fetching deployment outputs...'
-                        dir(env.TF_PATH) {
-                            // Assigning the output to a variable requires a `script` block.
-                            def apiGatewayUrl = sh(returnStdout: true, script: 'terraform output -raw api_gateway_url').trim()
-                            echo "Deployment Complete! Your application is accessible at: ${apiGatewayUrl}"
-                        }
-                    }
-                }
-            }
-        }
+        // // Stage for fetching and displaying deployment information
+        // stage('Post-Deployment Info') {
+        //     // This stage will also use the Terraform Docker container
+        //     agent {
+        //         docker {
+        //             image 'hashicorp/terraform:1.5.7'
+        //             args '--entrypoint="" -u root:root'
+        //         }
+        //     }
+        //     steps {
+        //         script {
+        //             withCredentials([
+        //                 string(credentialsId: 'AWS_ACCESS_KEY_ID', variable: 'AWS_ACCESS_KEY_ID'),
+        //                 string(credentialsId: 'AWS_SECRET_ACCESS_KEY', variable: 'AWS_SECRET_ACCESS_KEY')
+        //             ]) {    
+        //                 echo 'Fetching deployment outputs...'
+        //                 dir(env.TF_PATH) {
+        //                     // Assigning the output to a variable requires a `script` block.
+        //                     def apiGatewayUrl = sh(returnStdout: true, script: 'terraform output -raw api_gateway_url').trim()
+        //                     echo "Deployment Complete! Your application is accessible at: ${apiGatewayUrl}"
+        //                 }
+        //             }
+        //         }
+        //     }
+        // }
     }  
 
     // Post-build actions
-    post {
-        always {
-            echo 'Cleaning up workspace...'
-            // cleanWs() // Uncomment to clean the workspace after every build
-        }
+    // post {
+    //     always {
+    //         echo 'Cleaning up workspace...'
+    //         // cleanWs() // Uncomment to clean the workspace after every build
+    //     }
             
-        failure {
-            echo 'Pipeline failed! Check logs for errors.'
-        }
-        
-        success {
-            echo 'Pipeline completed successfully!'
-        }
-    } 
+    //     failure {
+    //         echo 'Pipeline failed! Check logs for errors.'
+    //     }
+            
+    //     success {
+    //         echo 'Pipeline completed successfully!'
+    //     }
+    // } 
 }

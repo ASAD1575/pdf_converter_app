@@ -41,12 +41,13 @@ pipeline {
                     // Install Python dependencies directly into the package content directory
                     sh 'pip install --target ./package_content -r pdf_converter_FastAPI_app/requirements.txt'
 
-                    // Copy the application code into the package content directory
-                    sh 'cp -r pdf_converter_FastAPI_app/* ./package_content/'
+                    // Copy the application code into the package content directory, excluding requirements.txt
+                    sh 'cp -r pdf_converter_FastAPI_app/main.py pdf_converter_FastAPI_app/database.py pdf_converter_FastAPI_app/models.py pdf_converter_FastAPI_app/utils.py pdf_converter_FastAPI_app/static pdf_converter_FastAPI_app/templates pdf_converter_FastAPI_app/uploads ./package_content/'
 
                     // Create the final zip file from the package content directory
                     dir('package_content') {
-                        sh 'zip -r ../lambda_package.zip .'
+                        // Use verbose flag for better logging
+                        sh 'zip -rv ../lambda_package.zip .'
                     }
                 }
             }
@@ -65,14 +66,14 @@ pipeline {
             steps {
                 script {
                     echo 'Initializing Terraform...'
-                    sh 'terraform init'
+                    sh 'terraform -chdir=terraform init'
 
                     echo 'Applying Terraform configuration...'
                     // Calculate file hash for the combined package
                     def sourceCodeHash = sh(script: "sha256sum lambda_package.zip | awk '{print \$1}'", returnStdout: true).trim()
 
                     // Pass the single zip file name and its hash to Terraform
-                    sh "terraform apply -auto-approve -var='s3_key=lambda_package.zip' -var='source_code_hash=${sourceCodeHash}'"
+                    sh "terraform -chdir=terraform apply -auto-approve -var='s3_key=lambda_package.zip' -var='source_code_hash=${sourceCodeHash}'"
                 }
             }
         }
@@ -83,7 +84,7 @@ pipeline {
             steps {
                 script {
                     echo 'Gathering post-deployment information...'
-                    def apiEndpoint = sh(script: 'terraform output -raw api_gateway_url', returnStdout: true).trim()
+                    def apiEndpoint = sh(script: 'terraform -chdir=terraform output -raw api_gateway_url', returnStdout: true).trim()
                     echo "API Gateway Endpoint: ${apiEndpoint}"
                 }
             }

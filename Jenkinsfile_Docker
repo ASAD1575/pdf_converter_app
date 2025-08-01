@@ -8,14 +8,21 @@ pipeline {
         APP_SOURCE_PATH = 'pdf_converter_FastAPI_app/'
         TF_PATH = '.' // Defines the path to your Terraform configuration files
     }
-    
-    // Get the Jenkins user and group ID dynamically to use with Docker containers
-    // This ensures file permissions are correct across stages.
-    tools {
-      // Need to add this to use `sh` command for `id`
-    }
-    
+
+    // Define variables for host user and group ID at the pipeline level
+    // This script block runs before any stages, making the variables global.
+    // The `script` block is required to execute a shell command here.
     stages {
+        stage('Initialize Variables') {
+            steps {
+                script {
+                    env.hostUserId = sh(returnStdout: true, script: 'id -u').trim()
+                    env.hostGroupId = sh(returnStdout: true, script: 'id -g').trim()
+                    echo "Jenkins user/group ID: ${env.hostUserId}:${env.hostGroupId}"
+                }
+            }
+        }
+        
         // This stage checks out the source code from SCM.
         stage('Checkout Source') {
             steps {
@@ -26,17 +33,12 @@ pipeline {
 
         // Stage to install Python dependencies for the Lambda function
         stage('Install Build Tools & Dependencies') {
-            // Get the user and group ID of the Jenkins agent on the host
-            // to ensure files are created with correct permissions.
-            def hostUserId = sh(returnStdout: true, script: 'id -u').trim()
-            def hostGroupId = sh(returnStdout: true, script: 'id -g').trim()
-
             // Specifies that this stage will run inside a `python:3.9-slim` Docker container
             agent {
                 docker {
                     image 'python:3.9-slim'
-                    // Use the host user ID for the container
-                    args "-u ${hostUserId}:${hostGroupId}" 
+                    // Use the host user ID for the container, which is now a global env variable
+                    args "-u ${env.hostUserId}:${env.hostGroupId}" 
                 }
             }
             steps {
@@ -62,15 +64,12 @@ pipeline {
 
         // Stage for Terraform initialization and application
         stage ('Terraform Init & Apply') {
-            def hostUserId = sh(returnStdout: true, script: 'id -u').trim()
-            def hostGroupId = sh(returnStdout: true, script: 'id -g').trim()
-
             // This stage will run inside a `hashicorp/terraform:1.5.7` Docker container
             agent {
                 docker {
                     image 'hashicorp/terraform:1.5.7'
                     // Use the host user ID for the container
-                    args "--user ${hostUserId}:${hostGroupId} --entrypoint="
+                    args "--user ${env.hostUserId}:${env.hostGroupId} --entrypoint="
                 }
             }
             steps {
@@ -113,14 +112,11 @@ pipeline {
         
         // Stage for fetching and displaying deployment information
         stage('Post-Deployment Info') {
-            def hostUserId = sh(returnStdout: true, script: 'id -u').trim()
-            def hostGroupId = sh(returnStdout: true, script: 'id -g').trim()
-            
             // This stage will also use the Terraform Docker container
             agent {
                 docker {
                     image 'hashicorp/terraform:1.5.7'
-                    args "--user ${hostUserId}:${hostGroupId} --entrypoint="
+                    args "--user ${env.hostUserId}:${env.hostGroupId} --entrypoint="
                 }
             }
             steps {

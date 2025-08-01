@@ -86,7 +86,6 @@ resource "aws_lambda_function" "pdf_converter_app" {
   s3_bucket = var.s3_bucket_name
   s3_key = "pdf_converter_app.zip"
 
-  source_code_hash = var.source_code_hash
   # VPC Configuration (to access RDS)
   vpc_config {
     subnet_ids         = var.private_subnet_ids # Lambda should be in private subnets

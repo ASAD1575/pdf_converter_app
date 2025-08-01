@@ -5,12 +5,6 @@ terraform {
       version = "~> 6.6.0"
     }
   }
-  backend "s3" {
-    bucket         = "pdflambdabucket1575"
-    key            = "terraform.tfstate"
-    region         = "us-east-1"
-    dynamodb_table = "terraform-state-lock-table"
-  }
 }
 
 # Configure the AWS provider
@@ -27,13 +21,6 @@ module "vpc" {
 module "security_group" {
   source = "./modules/security_group"
   vpc_id = module.vpc.vpc_id
-}
-
-module "s3" {
-  source = "./modules/s3"
-  region = "us-east-1"
-  s3_bucket_name = "pdflambdabucket1575"
-  
 }
 
 module "rds" {

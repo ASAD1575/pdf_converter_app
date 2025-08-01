@@ -46,9 +46,6 @@ pipeline {
                     ]) {
                         dir(env.TF_PATH) {
                             echo "Bootstrapping DynamoDB table..."
-                            sh "ls -l"
-                            sh "rm -f terraform.tfstate"
-                            sh "rm -f terraform.tfstate.backup"
                             // Use the -var-file to handle variable input if you have any
                             sh "terraform apply -auto-approve -var 'region=${env.AWS_DEFAULT_REGION}' -target=aws_dynamodb_table.terraform_state_lock"
                         }

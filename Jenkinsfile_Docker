@@ -35,7 +35,7 @@ pipeline {
             // Specifies that this stage will run inside a `python:3.9-slim` Docker container
             agent {
                 docker {
-                    image 'python:3.9-slim'
+                    image 'public.ecr.aws/lambda/python:3.10'
                     args '--user 0'
                 }
             }

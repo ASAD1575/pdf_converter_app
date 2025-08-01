@@ -44,7 +44,7 @@ pipeline {
                     // Create the deployment package zip file
                     sh 'ls -l'
                     echo "Creating deployment package zip..."
-                    sh 'zip -r ../pdf_converter_app.zip .'
+                    sh 'zip -r /pdf_converter_app.zip .'
                     sh 'ls -l pdf_converter_app.zip'
 
                 }
@@ -71,7 +71,7 @@ pipeline {
                         echo 'Initializing and Applying Terraform...'
                         
                         dir(env.TF_PATH){
-                            
+
                             // Get the hash of the zip file to trigger a new deployment
                             echo 'Installing AWS CLI and Python dependencies...'
                             sh 'pip install awscli'

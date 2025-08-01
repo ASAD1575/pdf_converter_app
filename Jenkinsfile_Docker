@@ -35,13 +35,13 @@ pipeline {
             // Specifies that this stage will run inside a `python:3.9-slim` Docker container
             agent {
                 docker {
-                    image 'public.ecr.aws/lambda/python:3.10'
+                    image 'python:3.9-slim'
                     args '--user 0'
                 }
             }
             steps {
                 echo 'Updating package list and installing zip...'
-                sh 'yum update && yum install -y zip'
+                sh 'apt-get update && apt-get install -y zip'
 
                 dir("${env.APP_SOURCE_PATH}") {
                     echo "Installing dependencies into ${env.APP_SOURCE_PATH}..."
@@ -101,7 +101,7 @@ pipeline {
                             sh 'terraform init -upgrade'
 
                             // Pass all variables in a single terraform apply command
-                            sh "terraform apply -auto-approve -var 's3_key=${env.ZIP_FILE_NAME}' -var 'source_code_hash=${fileHash}'"
+                            sh "terraform destroy -auto-approve -var 's3_key=${env.ZIP_FILE_NAME}' -var 'source_code_hash=${fileHash}'"
                         }
                     }
                 }
@@ -134,7 +134,7 @@ pipeline {
             }
         }
     }  
-
+    
     // Post-build actions
     post {
         always {

@@ -68,11 +68,11 @@ resource "aws_iam_role_policy" "lambda_s3_access" {
 # This data source creates a .zip file from your application's source directory.
 # Ensure your main.py, database.py, models.py, utils.py, requirements.txt,
 # and any other necessary Python files are in the 'src' directory (or adjust path).
-data "archive_file" "lambda_zip" {
-  type        = "zip"
-  source_dir  = "${path.root}/${var.source_code_path}"
-  output_path = "${path.module}/app_package.zip"
-}
+# data "archive_file" "lambda_zip" {
+#   type        = "zip"
+#   source_dir  = "${path.root}/${var.source_code_path}"
+#   output_path = "${path.module}/app_package.zip"
+# }
 
 # 3. AWS Lambda Function
 resource "aws_lambda_function" "pdf_converter_app" {
@@ -86,6 +86,7 @@ resource "aws_lambda_function" "pdf_converter_app" {
   s3_bucket = var.s3_bucket_name
   s3_key = "pdf_converter_app.zip"
 
+  source_code_hash = var.source_code_hash
   # VPC Configuration (to access RDS)
   vpc_config {
     subnet_ids         = var.private_subnet_ids # Lambda should be in private subnets

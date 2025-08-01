@@ -66,14 +66,14 @@ pipeline {
             steps {
                 script {
                     echo 'Initializing Terraform...'
-                    sh 'terraform -chdir=terraform init'
+                    sh 'terraform init'
 
                     echo 'Applying Terraform configuration...'
                     // Calculate file hash for the combined package
                     def sourceCodeHash = sh(script: "sha256sum lambda_package.zip | awk '{print \$1}'", returnStdout: true).trim()
 
                     // Pass the single zip file name and its hash to Terraform
-                    sh "terraform -chdir=terraform apply -auto-approve -var='s3_key=lambda_package.zip' -var='source_code_hash=${sourceCodeHash}'"
+                    sh "terraform apply -auto-approve -var='s3_key=lambda_package.zip' -var='source_code_hash=${sourceCodeHash}'"
                 }
             }
         }
@@ -84,7 +84,7 @@ pipeline {
             steps {
                 script {
                     echo 'Gathering post-deployment information...'
-                    def apiEndpoint = sh(script: 'terraform -chdir=terraform output -raw api_gateway_url', returnStdout: true).trim()
+                    def apiEndpoint = sh(script: 'terraform output -raw api_gateway_url', returnStdout: true).trim()
                     echo "API Gateway Endpoint: ${apiEndpoint}"
                 }
             }

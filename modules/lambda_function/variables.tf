@@ -75,3 +75,22 @@ variable "source_code_hash" {
 variable "s3_key" {
   type = string
 }
+variable "app_zip_file_name" {
+  type        = string
+  description = "The name of the zipped application code file in the S3 bucket."
+}
+
+variable "app_code_hash" {
+  type        = string
+  description = "SHA256 hash of the application code zip file."
+}
+
+variable "dependencies_zip_file_name" {
+  type        = string
+  description = "The name of the zipped dependencies layer file in the S3 bucket."
+}
+
+variable "dependencies_code_hash" {
+  type        = string
+  description = "SHA256 hash of the dependencies layer zip file."
+}

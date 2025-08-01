@@ -67,7 +67,3 @@ variable "s3_bucket_name" {
   type = string
 }
 
-variable "source_code_hash" {
-  description = "The base64-encoded SHA256 hash of the Lambda function's deployment package."
-  type        = string
-}

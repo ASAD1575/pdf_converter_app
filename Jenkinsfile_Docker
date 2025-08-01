@@ -31,7 +31,6 @@ pipeline {
             agent any
             steps {
                 echo 'Installing dependencies and packaging application...'
-                // Use a single container for all installation and packaging steps
                 withDockerContainer(image: 'public.ecr.aws/lambda/python:3.10', args: '-u root --entrypoint=') {
                     // Install the zip utility as the root user
                     sh 'yum update -y && yum install -y zip'
@@ -42,8 +41,13 @@ pipeline {
                         sh 'pip install --target . -r ../../pdf_converter_FastAPI_app/requirements.txt'
                     }
 
-                    // Package application code and dependencies
-                    sh 'zip -r -j pdf_converter_app.zip pdf_converter_FastAPI_app/*'
+                    // Package application code (excluding the 'package' dir) and dependencies separately
+                    echo 'Packaging application code...'
+                    dir('pdf_converter_FastAPI_app') {
+                        sh 'zip -r ../pdf_converter_app.zip .'
+                    }
+
+                    echo 'Packaging dependencies layer...'
                     dir('dependencies') {
                         sh 'zip -r ../dependencies.zip .'
                     }

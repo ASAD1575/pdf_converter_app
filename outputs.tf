@@ -60,11 +60,6 @@ output "lambda_log_group_arn" {
   value       = module.cloudwatch.log_group_arn
 }
 
-output "s3_bucket_id" {
-  description = "The name of the S3 bucket for PDF conversions."
-  value       = module.s3_bucket.s3_bucket_id
-}
-
 output "vpc_id" {
   value = module.vpc.vpc_id
 }

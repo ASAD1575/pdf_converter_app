@@ -1,10 +1,6 @@
 pipeline {
-    agent {
-        docker {
-            image 'public.ecr.aws/lambda/python:3.10'
-            args '-u 1000:1000 --entrypoint='
-        }
-    }
+    // Set agent to 'none' at the pipeline level to allow per-stage agents
+    agent none
 
     environment {
         AWS_DEFAULT_REGION = 'us-east-1'
@@ -12,17 +8,18 @@ pipeline {
 
     stages {
         stage('Initialize Variables') {
+            agent any
             steps {
                 script {
                     sh 'id -u'
                     sh 'id -g'
-                    // --- FIX: Correct way to echo a shell command's output in a sh step ---
                     sh 'echo "Jenkins user/group ID: $(id -u):$(id -g)"'
                 }
             }
         }
 
         stage('Checkout Source') {
+            agent any
             steps {
                 echo 'Checking out source code from SCM...'
                 checkout scm
@@ -31,23 +28,33 @@ pipeline {
 
         stage('Install Build Tools & Dependencies') {
             steps {
-                echo 'Updating package list and installing zip...'
-                sh 'yum update -y && yum install -y zip'
-
-                echo 'Creating dependencies directory...'
-                sh 'mkdir -p dependencies/python'
-
-                dir('dependencies/python') {
-                    echo 'Installing dependencies from pdf_converter_FastAPI_app/ into dedicated layer directory...'
-                    sh 'pip install --target . -r ../../pdf_converter_FastAPI_app/requirements.txt'
+                // --- FIX: Run yum as root, as it needs elevated permissions ---
+                // This `withDockerContainer` block runs as root by default
+                echo 'Installing system dependencies with root user...'
+                withDockerContainer(image: 'public.ecr.aws/lambda/python:3.10') {
+                    sh 'yum update -y && yum install -y zip'
                 }
-                
-                // Fix for the AccessDeniedException
-                sh 'sudo chown -R 1000:1000 .' 
+
+                // --- FIX: Run pip with the non-root user for security and file ownership ---
+                // This `withDockerContainer` block runs as user 1000
+                echo 'Installing Python dependencies with non-root user...'
+                withDockerContainer(image: 'public.ecr.aws/lambda/python:3.10', args: '-u 1000:1000 --entrypoint=') {
+                    sh 'mkdir -p dependencies/python'
+                    dir('dependencies/python') {
+                        sh 'pip install --target . -r ../../pdf_converter_FastAPI_app/requirements.txt'
+                    }
+                }
             }
         }
 
         stage('Package Application and Dependencies') {
+            // Run subsequent stages in the non-root container for consistency
+            agent {
+                docker {
+                    image 'public.ecr.aws/lambda/python:3.10'
+                    args '-u 1000:1000 --entrypoint='
+                }
+            }
             steps {
                 script {
                     def appZipFile = 'pdf_converter_app.zip'
@@ -60,14 +67,12 @@ pipeline {
                     dir('dependencies') {
                         sh "zip -r ../${dependenciesZipFile} ."
                     }
-                    
-                    // Fix for the AccessDeniedException
-                    sh 'sudo chown -R 1000:1000 .'
                 }
             }
         }
 
         stage('Terraform Init & Apply') {
+            agent any // Terraform can run on the host agent
             steps {
                 script {
                     echo 'Initializing Terraform...'
@@ -85,6 +90,7 @@ pipeline {
         }
 
         stage('Post-Deployment Info') {
+            agent any
             steps {
                 script {
                     echo 'Gathering post-deployment information...'

@@ -41,7 +41,7 @@ pipeline {
             }
             steps {
                 echo 'Updating package list and installing zip...'
-                sh 'apt-get update && apt-get install -y zip'
+                sh 'yum update -y && yum install -y zip'
 
                 dir("${env.APP_SOURCE_PATH}") {
                     echo "Installing dependencies into ${env.APP_SOURCE_PATH}..."

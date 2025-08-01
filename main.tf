@@ -51,7 +51,7 @@ module "lambda_function" {
   db_port                   = module.rds.db_port
   db_user                   = module.rds.db_username
   s3_bucket_name            = "pdflambdabucket1575"
-  source_code_hash          = var.source_code_hash
+  source_code_hash          = var.app_code_hash
   s3_key                    = var.s3_key
   # The `source_code_path` argument has been removed as it conflicts with the S3-based deployment.
 }

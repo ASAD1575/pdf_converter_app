@@ -65,14 +65,12 @@ resource "aws_iam_role_policy" "lambda_s3_access" {
 }
 
 # 2. Package the Python application code into a ZIP file
-# This data source creates a .zip file from your application's source directory.
-# Ensure your main.py, database.py, models.py, utils.py, requirements.txt,
-# and any other necessary Python files are in the 'src' directory (or adjust path).
-# data "archive_file" "lambda_zip" {
-#   type        = "zip"
-#   source_dir  = "${path.root}/${var.source_code_path}"
-#   output_path = "${path.module}/app_package.zip"
-# }
+data "archive_file" "lambda_zip" {
+  type        = "zip"
+  source_dir  = "${path.root}/${var.source_code_path}"
+  output_path = "${path.module}/app_package.zip"
+}
+
 
 # 3. AWS Lambda Function
 resource "aws_lambda_function" "pdf_converter_app" {

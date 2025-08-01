@@ -97,6 +97,9 @@ pipeline {
                             // Upload the zip file to the manually created S3 bucket
                             echo "Uploading ${env.ZIP_FILE_NAME} to S3 bucket ${env.S3_BUCKET_NAME}..."
                             sh "aws s3 cp ${env.ZIP_FILE_NAME} s3://${env.S3_BUCKET_NAME}/"
+                            sh "ls -l"
+                            sh "rm -f terraform.tfstate"
+                            sh "rm -f terraform.tfstate.backup"
 
                             sh 'terraform init -upgrade'
 

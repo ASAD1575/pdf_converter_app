@@ -16,7 +16,8 @@ pipeline {
                 script {
                     sh 'id -u'
                     sh 'id -g'
-                    echo "Jenkins user/group ID: $(id -u):$(id -g)"
+                    // --- FIX: Correct way to echo a shell command's output in a sh step ---
+                    sh 'echo "Jenkins user/group ID: $(id -u):$(id -g)"'
                 }
             }
         }
@@ -41,7 +42,7 @@ pipeline {
                     sh 'pip install --target . -r ../../pdf_converter_FastAPI_app/requirements.txt'
                 }
                 
-                // --- FIX: Change ownership after the container creates the files ---
+                // Fix for the AccessDeniedException
                 sh 'sudo chown -R 1000:1000 .' 
             }
         }
@@ -60,7 +61,7 @@ pipeline {
                         sh "zip -r ../${dependenciesZipFile} ."
                     }
                     
-                    // --- FIX: Change ownership again just in case ---
+                    // Fix for the AccessDeniedException
                     sh 'sudo chown -R 1000:1000 .'
                 }
             }

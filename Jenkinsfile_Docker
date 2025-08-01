@@ -8,6 +8,7 @@ pipeline {
 
     stages {
         stage('Initialize Variables') {
+            // Run this stage on the Jenkins host
             agent any
             steps {
                 script {
@@ -19,6 +20,7 @@ pipeline {
         }
 
         stage('Checkout Source') {
+            // Run this stage on the Jenkins host
             agent any
             steps {
                 echo 'Checking out source code from SCM...'
@@ -72,7 +74,8 @@ pipeline {
         }
 
         stage('Terraform Init & Apply') {
-            agent any // Terraform can run on the host agent
+            // Run this stage on the Jenkins host
+            agent any
             steps {
                 script {
                     echo 'Initializing Terraform...'
@@ -90,6 +93,7 @@ pipeline {
         }
 
         stage('Post-Deployment Info') {
+            // Run this stage on the Jenkins host
             agent any
             steps {
                 script {

@@ -82,7 +82,7 @@ resource "aws_lambda_function" "pdf_converter_app" {
   memory_size   = 1024 # Increase memory for LibreOffice (consider 512-2048 MB)
 
   s3_bucket = var.s3_bucket_name
-  s3_key = "pdf_converter_app.zip"
+  s3_key = var.s3_key
 
   source_code_hash = var.source_code_hash
   # VPC Configuration (to access RDS)

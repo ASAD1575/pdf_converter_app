@@ -3,6 +3,7 @@ pipeline {
 
     environment {
         AWS_DEFAULT_REGION = 'us-east-1'
+        AWS_ACCOUNT_ID = '375299695019'
     }
 
     stages {
@@ -63,7 +64,7 @@ pipeline {
             steps {
                 script {
                     echo 'Initializing Terraform...'
-                    sh 'terraform init'
+                    sh 'terraform init -upgrade'
 
                     echo 'Applying Terraform configuration...'
                     // Calculate file hashes for both zip files

@@ -29,6 +29,30 @@ pipeline {
                 checkout scm
             }
         }
+        
+        // This is the new stage to create the DynamoDB table first
+        stage('Bootstrap DynamoDB Table') {
+            agent {
+                docker {
+                    image 'hashicorp/terraform:1.5.7'
+                    args '--user 0 --entrypoint="" --dns 8.8.8.8'
+                }
+            }
+            steps {
+                script {
+                    withCredentials([
+                        string(credentialsId: 'AWS_ACCESS_KEY_ID', variable: 'AWS_ACCESS_KEY_ID'),
+                        string(credentialsId: 'AWS_SECRET_ACCESS_KEY', variable: 'AWS_SECRET_ACCESS_KEY'),
+                    ]) {
+                        dir(env.TF_PATH) {
+                            echo "Bootstrapping DynamoDB table..."
+                            // Use the -var-file to handle variable input if you have any
+                            sh "terraform apply -auto-approve -var 'region=${env.AWS_DEFAULT_REGION}' -target=aws_dynamodb_table.terraform_state_lock"
+                        }
+                    }
+                }
+            }
+        }
 
         // Stage to install Python dependencies for the Lambda function
         stage('Install Build Tools & Dependencies') {

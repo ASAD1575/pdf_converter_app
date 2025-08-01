@@ -97,8 +97,6 @@ pipeline {
                             // Upload the zip file to the manually created S3 bucket
                             echo "Uploading ${env.ZIP_FILE_NAME} to S3 bucket ${env.S3_BUCKET_NAME}..."
                             sh "aws s3 cp ${env.ZIP_FILE_NAME} s3://${env.S3_BUCKET_NAME}/"
-                            sh "terraform init -migrate-state"
-                            sh 'terraform init -reconfigure'
                             sh "terraform init -upgrade"
 
                             // Pass all variables in a single terraform apply command

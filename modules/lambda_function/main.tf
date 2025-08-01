@@ -68,18 +68,11 @@ resource "aws_iam_role_policy" "lambda_s3_access" {
 # This data source creates a .zip file from your application's source directory.
 # Ensure your main.py, database.py, models.py, utils.py, requirements.txt,
 # and any other necessary Python files are in the 'src' directory (or adjust path).
-data "archive_file" "lambda_zip" {
-   type        = "zip"
-   source_dir  = "${path.root}/${var.source_code_path}"
-   output_path = "${path.module}/app_package.zip"
- }
-
-resource "aws_s3_object" "lambda_code_upload" {
-  bucket = var.s3_bucket_name
-  key    = "pdf_converter_app.zip"
-  source = data.archive_file.lambda_zip.output_path
-  etag   = filemd5(data.archive_file.lambda_zip.output_path) # Forces an update when the file changes
-}
+# data "archive_file" "lambda_zip" {
+#   type        = "zip"
+#   source_dir  = "${path.root}/${var.source_code_path}"
+#   output_path = "${path.module}/app_package.zip"
+# }
 
 # 3. AWS Lambda Function
 resource "aws_lambda_function" "pdf_converter_app" {
@@ -90,8 +83,8 @@ resource "aws_lambda_function" "pdf_converter_app" {
   timeout       = 300 # Increase timeout for PDF conversion (max 900 seconds)
   memory_size   = 1024 # Increase memory for LibreOffice (consider 512-2048 MB)
 
-  s3_bucket = aws_s3_object.lambda_code_upload.bucket
-  s3_key    = aws_s3_object.lambda_code_upload.key
+  s3_bucket = var.s3_bucket_name
+  s3_key = "pdf_converter_app.zip"
 
   source_code_hash = var.source_code_hash
   # VPC Configuration (to access RDS)

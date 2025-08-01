@@ -24,44 +24,47 @@ module "security_group" {
 }
 
 module "rds" {
-  source            = "./modules/rds"
-  region            = "us-east-1"
-  identifier        = "pdfconverterdb"
-  instance_class    = "db.t3.micro"
-  engine            = "postgres"
-  engine_version    = "14"
-  database_name     = "pdfconverterdb"
-  db_username       = "dbuser"
-  db_password       = "Subhani786"
-  port              = 5432
-  security_group    = module.security_group.app_sg_id
-  db_subnet_ids     = module.vpc.private_subnet_ids
+  source          = "./modules/rds"
+  region          = "us-east-1"
+  identifier      = "pdfconverterdb"
+  instance_class  = "db.t3.micro"
+  engine          = "postgres"
+  engine_version  = "14"
+  database_name   = "pdfconverterdb"
+  db_username     = "dbuser"
+  db_password     = "Subhani786"
+  port            = 5432
+  security_group  = module.security_group.app_sg_id
+  db_subnet_ids   = module.vpc.private_subnet_ids
 }
 
 module "lambda_function" {
-  source                    = "./modules/lambda_function"
-  region                    = "us-east-1"
-  function_name             = "pdfconverter"
-  source_code_path          = "pdf_converter_FastAPI_app/"
-  private_subnet_ids        = module.vpc.private_subnet_ids
-  app_security_group_id     = module.security_group.app_security_group_id
-  libreoffice_layer_arn     = "arn:aws:lambda:us-east-1:764866452798:layer:libreoffice-gzip:1"
-  db_host                   = module.rds.rds_endpoint
-  db_name                   = module.rds.db_name
-  db_password               = module.rds.db_password
-  db_port                   = module.rds.db_port
-  db_user                   = module.rds.db_username
-  s3_bucket_name            = "pdflambdabucket1575"
-  source_code_hash          = var.source_code_hash
-  s3_key                    = var.s3_key
+  source                     = "./modules/lambda_function"
+  region                     = "us-east-1"
+  function_name              = "pdfconverter"
+  private_subnet_ids         = module.vpc.private_subnet_ids
+  app_security_group_id      = module.security_group.app_security_group_id
+  libreoffice_layer_arn      = "arn:aws:lambda:us-east-1:764866452798:layer:libreoffice-gzip:1"
+  db_host                    = module.rds.rds_endpoint
+  db_name                    = module.rds.db_name
+  db_password                = module.rds.db_password
+  db_port                    = module.rds.db_port
+  db_user                    = module.rds.db_username
+  s3_bucket_name             = "pdflambdabucket1575"
+
+  # --- NEW: Pass the new variables from the Jenkins pipeline ---
+  app_zip_file_name          = var.app_zip_file_name
+  app_code_hash              = var.app_code_hash
+  dependencies_zip_file_name = var.dependencies_zip_file_name
+  dependencies_code_hash     = var.dependencies_code_hash
 }
-# 
+
 # Add the API Gateway module
 module "api_gateway" {
   source      = "./modules/api_gateway"
   region      = "us-east-1" # Use the region from the provider configuration
   api_name    = "pdf-converter-api"
-# 
+
   # These inputs need to come from your Lambda function module's outputs.
   # You'll need to define and deploy your Lambda function (e.g., using a 'lambda' module)
   # and then pass its name, ARN, and invoke ARN here.

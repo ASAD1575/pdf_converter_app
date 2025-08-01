@@ -7,6 +7,7 @@ pipeline {
         APP_SOURCE_PATH = 'pdf_converter_FastAPI_app/'
         TF_PATH = '.'                                   // Defines the path to your Terraform configuration files
         S3_BUCKET_NAME = "pdflambdabucket1575"
+        ZIP_FILE_NAME = 'pdf_converter_app.zip'
     }
 
     // Define variables for host user and group ID at the pipeline level

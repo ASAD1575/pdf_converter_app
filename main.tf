@@ -29,6 +29,13 @@ module "security_group" {
   vpc_id = module.vpc.vpc_id
 }
 
+module "s3" {
+  source = "./modules/s3"
+  region = "us-east-1"
+  s3_bucket_name = "pdflambdabucket1575"
+  
+}
+
 module "rds" {
   source            = "./modules/rds"
   region            = "us-east-1"
@@ -113,23 +120,4 @@ resource "null_resource" "update_local_env" {
       echo "Successfully updated ./pdf_converter_FastAPI_app/.env"
     EOT
   }
-}
-
-# Create DynamoDB Table for State Locking
-resource "aws_dynamodb_table" "terraform_state_lock" {
-  name         = "terraform-state-lock-table"
-  billing_mode = "PROVISIONED"
-  read_capacity  = 5
-  write_capacity = 5
-  hash_key     = "LockID"
-
-  attribute {
-    name = "LockID"
-    type = "S"
-  }
-
-  tags = {
-    Name = "pdfconverterappdynamodbtable"
-  }
-  
 }

@@ -41,20 +41,22 @@ pipeline {
                 // Install Python dependencies and then package the application
                 echo 'Installing Python dependencies with non-root user...'
                 withDockerContainer(image: 'public.ecr.aws/lambda/python:3.10', args: '-u 1000:1000 --entrypoint=') {
-                    sh 'mkdir -p dependencies/python'
-                    dir('dependencies/python') {
-                        sh 'pip install --target . -r ../../pdf_converter_FastAPI_app/requirements.txt'
-                    }
+                    script {
+                        def appZipFile = 'pdf_converter_app.zip'
+                        def dependenciesZipFile = 'dependencies.zip'
 
-                    def appZipFile = 'pdf_converter_app.zip'
-                    def dependenciesZipFile = 'dependencies.zip'
+                        sh 'mkdir -p dependencies/python'
+                        dir('dependencies/python') {
+                            sh 'pip install --target . -r ../../pdf_converter_FastAPI_app/requirements.txt'
+                        }
 
-                    echo 'Packaging application code...'
-                    sh "zip -r -j ${appZipFile} pdf_converter_FastAPI_app/*"
-                    
-                    echo 'Packaging dependencies layer...'
-                    dir('dependencies') {
-                        sh "zip -r ../${dependenciesZipFile} ."
+                        echo 'Packaging application code...'
+                        sh "zip -r -j ${appZipFile} pdf_converter_FastAPI_app/*"
+                        
+                        echo 'Packaging dependencies layer...'
+                        dir('dependencies') {
+                            sh "zip -r ../${dependenciesZipFile} ."
+                        }
                     }
                 }
             }

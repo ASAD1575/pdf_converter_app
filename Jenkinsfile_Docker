@@ -28,19 +28,25 @@ pipeline {
                 }
             }
             steps {
-                // The following steps are simple shell commands and don't need a `script` block.
                 echo 'Updating package list and installing unzip...'
                 sh 'apt-get update && apt-get install -y unzip wget'
 
-                echo 'Installing AWS CLI and Python dependencies...'
-                sh 'pip install awscli'
-
                 // Installs Python dependencies into a 'package' directory for lambda deployment
                 dir("${env.APP_SOURCE_PATH}") {
-                    sh 'pip install --target ./package --upgrade -r requirements.txt'
+
+                    echo "Installing dependencies into ${env.APP_SOURCE_PATH}..."
+                    sh 'apt-get install zip -y'
+                    sh 'pip install --target . --upgrade -r requirements.txt'
                     sh 'pip install --upgrade pip'
                     // Clean up any __pycache__ directories
                     sh 'find . -name "__pycache__" -type d -print0 | xargs -0 rm -rf || true'
+
+                    // Create the deployment package zip file
+                    sh 'ls -l'
+                    echo "Creating deployment package zip..."
+                    sh 'zip -r ../pdf_converter_app.zip .'
+                    sh 'ls -l pdf_converter_app.zip'
+
                 }
             }
         }
@@ -65,10 +71,24 @@ pipeline {
                         echo 'Initializing and Applying Terraform...'
                         
                         dir(env.TF_PATH){
+                            
+                            // Get the hash of the zip file to trigger a new deployment
+                            echo 'Installing AWS CLI and Python dependencies...'
+                            sh 'pip install awscli'
+
+                            def fileHash = sh(returnStdout: true, script: "sha256sum pdf_converter_app.zip | awk '{print \$1}'").trim()
+                            
+                            // Get the S3 bucket name from a terraform output (or hardcode it if necessary)
+                            def s3BucketName = 'pdflambdabucket1575'
+
+                            // Upload the zip file to S3
+                            echo "Uploading pdf_converter_app.zip to S3 bucket ${s3BucketName}..."
+                            sh "aws s3 cp pdf_converter_app.zip s3://${s3BucketName}/"
+
+                            // Running Terraform init and apply with variables
                             sh '''
-                                chmod +x ./update_env.sh
                                 terraform init -upgrade
-                                terraform destroy -auto-approve
+                                terraform apply -auto-approve -var="source_code_hash=${fileHash}"
                             '''
                         }
                     }
@@ -76,46 +96,46 @@ pipeline {
             }
         }
         
-        // // Stage for fetching and displaying deployment information
-        // stage('Post-Deployment Info') {
-        //     // This stage will also use the Terraform Docker container
-        //     agent {
-        //         docker {
-        //             image 'hashicorp/terraform:1.5.7'
-        //             args '--entrypoint="" -u root:root'
-        //         }
-        //     }
-        //     steps {
-        //         script {
-        //             withCredentials([
-        //                 string(credentialsId: 'AWS_ACCESS_KEY_ID', variable: 'AWS_ACCESS_KEY_ID'),
-        //                 string(credentialsId: 'AWS_SECRET_ACCESS_KEY', variable: 'AWS_SECRET_ACCESS_KEY')
-        //             ]) {    
-        //                 echo 'Fetching deployment outputs...'
-        //                 dir(env.TF_PATH) {
-        //                     // Assigning the output to a variable requires a `script` block.
-        //                     def apiGatewayUrl = sh(returnStdout: true, script: 'terraform output -raw api_gateway_url').trim()
-        //                     echo "Deployment Complete! Your application is accessible at: ${apiGatewayUrl}"
-        //                 }
-        //             }
-        //         }
-        //     }
-        // }
+        // Stage for fetching and displaying deployment information
+        stage('Post-Deployment Info') {
+            // This stage will also use the Terraform Docker container
+            agent {
+                docker {
+                    image 'hashicorp/terraform:1.5.7'
+                    args '--entrypoint="" -u root:root'
+                }
+            }
+            steps {
+                script {
+                    withCredentials([
+                        string(credentialsId: 'AWS_ACCESS_KEY_ID', variable: 'AWS_ACCESS_KEY_ID'),
+                        string(credentialsId: 'AWS_SECRET_ACCESS_KEY', variable: 'AWS_SECRET_ACCESS_KEY')
+                    ]) {    
+                        echo 'Fetching deployment outputs...'
+                        dir(env.TF_PATH) {
+                            // Assigning the output to a variable requires a `script` block.
+                            def apiGatewayUrl = sh(returnStdout: true, script: 'terraform output -raw api_gateway_url').trim()
+                            echo "Deployment Complete! Your application is accessible at: ${apiGatewayUrl}"
+                        }
+                    }
+                }
+            }
+        }
     }  
 
     // Post-build actions
-    // post {
-    //     always {
-    //         echo 'Cleaning up workspace...'
-    //         // cleanWs() // Uncomment to clean the workspace after every build
-    //     }
+    post {
+        always {
+            echo 'Cleaning up workspace...'
+            // cleanWs() // Uncomment to clean the workspace after every build
+        }
             
-    //     failure {
-    //         echo 'Pipeline failed! Check logs for errors.'
-    //     }
+        failure {
+            echo 'Pipeline failed! Check logs for errors.'
+        }
             
-    //     success {
-    //         echo 'Pipeline completed successfully!'
-    //     }
-    // } 
+        success {
+            echo 'Pipeline completed successfully!'
+        }
+    } 
 }

@@ -27,29 +27,26 @@ pipeline {
         }
 
         stage('Install Dependencies & Package Application') {
-            // All steps now run in a single container
+            // All steps now run in a single container to prevent issues
             agent any
             steps {
                 echo 'Installing dependencies and packaging application...'
                 withDockerContainer(image: 'public.ecr.aws/lambda/python:3.10', args: '-u root --entrypoint=') {
-                    // Install the zip utility as the root user
+                    // Install the zip utility
                     sh 'yum update -y && yum install -y zip'
 
-                    // Install Python dependencies
-                    sh 'mkdir -p dependencies/python'
-                    dir('dependencies/python') {
-                        sh 'pip install --target . -r ../../pdf_converter_FastAPI_app/requirements.txt'
-                    }
+                    // Create a dedicated directory to build the final Lambda package
+                    sh 'mkdir -p package_content'
 
-                    // Package application code (excluding the 'package' dir) and dependencies separately
-                    echo 'Packaging application code...'
-                    dir('pdf_converter_FastAPI_app') {
-                        sh 'zip -r ../pdf_converter_app.zip .'
-                    }
+                    // Install Python dependencies directly into the package content directory
+                    sh 'pip install --target ./package_content -r pdf_converter_FastAPI_app/requirements.txt'
 
-                    echo 'Packaging dependencies layer...'
-                    dir('dependencies') {
-                        sh 'zip -r ../dependencies.zip .'
+                    // Copy the application code into the package content directory
+                    sh 'cp -r pdf_converter_FastAPI_app/* ./package_content/'
+
+                    // Create the final zip file from the package content directory
+                    dir('package_content') {
+                        sh 'zip -r ../lambda_package.zip .'
                     }
                 }
             }
@@ -71,12 +68,11 @@ pipeline {
                     sh 'terraform init'
 
                     echo 'Applying Terraform configuration...'
-                    // Calculate file hashes
-                    def appCodeHash = sh(script: "sha256sum pdf_converter_app.zip | awk '{print \$1}'", returnStdout: true).trim()
-                    def dependenciesCodeHash = sh(script: "sha256sum dependencies.zip | awk '{print \$1}'", returnStdout: true).trim()
+                    // Calculate file hash for the combined package
+                    def sourceCodeHash = sh(script: "sha256sum lambda_package.zip | awk '{print \$1}'", returnStdout: true).trim()
 
-                    // Pass hashes to Terraform as variables
-                    sh "terraform apply -auto-approve -var='app_zip_file_name=pdf_converter_app.zip' -var='app_code_hash=${appCodeHash}' -var='dependencies_zip_file_name=dependencies.zip' -var='dependencies_code_hash=${dependenciesCodeHash}'"
+                    // Pass the single zip file name and its hash to Terraform
+                    sh "terraform apply -auto-approve -var='s3_key=lambda_package.zip' -var='source_code_hash=${sourceCodeHash}'"
                 }
             }
         }
@@ -87,7 +83,7 @@ pipeline {
             steps {
                 script {
                     echo 'Gathering post-deployment information...'
-                    def apiEndpoint = sh(script: 'terraform -chdir=terraform output -raw api_gateway_url', returnStdout: true).trim()
+                    def apiEndpoint = sh(script: 'terraform output -raw api_gateway_url', returnStdout: true).trim()
                     echo "API Gateway Endpoint: ${apiEndpoint}"
                 }
             }

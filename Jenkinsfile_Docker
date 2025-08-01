@@ -57,7 +57,14 @@ pipeline {
 
         stage('Terraform Init & Apply') {
             // Run this stage on the Jenkins host
-            agent any
+            agent {
+                docker {
+                    image 'hashicorp/terraform:1.5.7'
+                    // FIX: Run as root, disable entrypoint, AND provide a public DNS server
+                    // to fix the i/o timeout error when connecting to registry.terraform.io.
+                    args '--user 0 --entrypoint="" --dns 8.8.8.8'
+                }
+            }
             steps {
                 script {
                     echo 'Initializing Terraform...'

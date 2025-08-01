@@ -59,7 +59,6 @@ module "lambda_function" {
   db_port                   = module.rds.db_port
   db_user                   = module.rds.db_username
   s3_bucket_name            = module.s3_bucket.s3_bucket_id
-  source_code_hash          = var.source_code_hash
 }
 # 
 # Add the API Gateway module

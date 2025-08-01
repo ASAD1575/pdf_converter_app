@@ -3,9 +3,6 @@ variable "region" {
   default = "us-east-1"
 }
 
-variable "s3_key" {
-  type = string
-}
 variable "app_zip_file_name" {
   type = string
 }

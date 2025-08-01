@@ -10,16 +10,6 @@ pipeline {
     }
 
     stages {
-        stage('Initialize Variables') {
-            steps {
-                script {
-                    env.hostUserId = sh(returnStdout: true, script: 'id -u').trim()
-                    env.hostGroupId = sh(returnStdout: true, script: 'id -g').trim()
-                    echo "Jenkins user/group ID: ${env.hostUserId}:${env.hostGroupId}"
-                }
-            }
-        }
-        
         // This stage checks out the source code from SCM.
         stage('Checkout Source') {
             steps {
@@ -34,11 +24,13 @@ pipeline {
             agent {
                 docker {
                     image 'hashicorp/terraform:1.5.7'
-                    args '--user 0 --entrypoint="" --dns 8.8.8.8'
+                    args '--entrypoint="" -u root:root'
                 }
             }
             steps {
+                // The `script` block is necessary here because of the nested withCredentials step.
                 script {
+                    // The withCredentials block must wrap the commands that need the credentials.
                     withCredentials([
                         string(credentialsId: 'AWS_ACCESS_KEY_ID', variable: 'AWS_ACCESS_KEY_ID'),
                         string(credentialsId: 'AWS_SECRET_ACCESS_KEY', variable: 'AWS_SECRET_ACCESS_KEY')
@@ -46,66 +38,13 @@ pipeline {
                         echo 'Initializing and Applying Terraform...'
                         
                         dir(env.TF_PATH){
-                            // The hashicorp/terraform image is based on Alpine Linux, which uses `apk`.
-                            echo 'Installing Python and ZIP in the Terraform container...'
-                            sh 'apk update && apk add python3 py3-pip zip'
-                            
-                            echo 'Installing Python dependencies...'
-                            sh "pip3 install --target ${env.APP_SOURCE_PATH} --upgrade -r ${env.APP_SOURCE_PATH}/requirements.txt"
-                            
-                            // Clean up any __pycache__ directories
-                            sh 'find . -name "__pycache__" -type d | xargs -r rm -rf'
-
-                            echo 'Running single-phase Terraform apply...'
                             sh '''
                                 terraform init -upgrade
-                                terraform apply -auto-approve
+                                terraform destroy -auto-approve
                             '''
                         }
                     }
                 }
             }
         }
-        
-        // Stage for fetching and displaying deployment information
-        stage('Post-Deployment Info') {
-            // This stage will also use the Terraform Docker container
-            agent {
-                docker {
-                    image 'hashicorp/terraform:1.5.7'
-                    args '--user 0 --entrypoint="" --dns 8.8.8.8'
-                }
-            }
-            steps {
-                script {
-                    withCredentials([
-                        string(credentialsId: 'AWS_ACCESS_KEY_ID', variable: 'AWS_ACCESS_KEY_ID'),
-                        string(credentialsId: 'AWS_SECRET_ACCESS_KEY', variable: 'AWS_SECRET_ACCESS_KEY')
-                    ]) {    
-                        echo 'Fetching deployment outputs...'
-                        dir(env.TF_PATH) {
-                            def apiGatewayUrl = sh(returnStdout: true, script: 'terraform output -raw api_gateway_url').trim()
-                            echo "Deployment Complete! Your application is accessible at: ${apiGatewayUrl}"
-                        }
-                    }
-                }
-            }
-        }
-    }  
-
-    // Post-build actions
-    post {
-        always {
-            echo 'Cleaning up workspace...'
-            // cleanWs()
-        }
-            
-        failure {
-            echo 'Pipeline failed! Check logs for errors.'
-        }
-        
-        success {
-            echo 'Pipeline completed successfully!'
-        }
-    } 
 }

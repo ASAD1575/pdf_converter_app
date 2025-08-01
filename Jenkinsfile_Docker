@@ -29,16 +29,16 @@ pipeline {
         }
 
         stage('Install Build Tools & Dependencies') {
-            // --- FIX: Add an agent to the stage itself to provide a valid node context.
+            // The stage itself needs an agent to execute the Docker commands
             agent any
             steps {
-                // This `withDockerContainer` block runs as root by default
+                // --- FIX: Explicitly run as root to allow yum to install packages. ---
+                // The AWS Lambda images run as a non-root user by default, which causes the permission error.
                 echo 'Installing system dependencies with root user...'
-                withDockerContainer(image: 'public.ecr.aws/lambda/python:3.10') {
+                withDockerContainer(image: 'public.ecr.aws/lambda/python:3.10', args: '-u root --entrypoint=') {
                     sh 'yum update -y && yum install -y zip'
                 }
 
-                // This `withDockerContainer` block runs as user 1000
                 echo 'Installing Python dependencies with non-root user...'
                 withDockerContainer(image: 'public.ecr.aws/lambda/python:3.10', args: '-u 1000:1000 --entrypoint=') {
                     sh 'mkdir -p dependencies/python'

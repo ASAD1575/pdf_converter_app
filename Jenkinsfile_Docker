@@ -8,7 +8,13 @@ pipeline {
         APP_SOURCE_PATH = 'pdf_converter_FastAPI_app/'
         TF_PATH = '.' // Defines the path to your Terraform configuration files
     }
-
+    
+    // Get the Jenkins user and group ID dynamically to use with Docker containers
+    // This ensures file permissions are correct across stages.
+    tools {
+      // Need to add this to use `sh` command for `id`
+    }
+    
     stages {
         // This stage checks out the source code from SCM.
         stage('Checkout Source') {
@@ -20,62 +26,71 @@ pipeline {
 
         // Stage to install Python dependencies for the Lambda function
         stage('Install Build Tools & Dependencies') {
+            // Get the user and group ID of the Jenkins agent on the host
+            // to ensure files are created with correct permissions.
+            def hostUserId = sh(returnStdout: true, script: 'id -u').trim()
+            def hostGroupId = sh(returnStdout: true, script: 'id -g').trim()
+
             // Specifies that this stage will run inside a `python:3.9-slim` Docker container
             agent {
                 docker {
                     image 'python:3.9-slim'
-                    args '-u root' 
+                    // Use the host user ID for the container
+                    args "-u ${hostUserId}:${hostGroupId}" 
                 }
             }
             steps {
-                echo 'Updating package list and installing unzip...'
-                sh 'apt-get update && apt-get install -y unzip wget'
+                echo 'Updating package list and installing zip...'
+                sh 'apt-get update && apt-get install -y zip'
 
-                // Installs Python dependencies into a 'package' directory for lambda deployment
                 dir("${env.APP_SOURCE_PATH}") {
-
                     echo "Installing dependencies into ${env.APP_SOURCE_PATH}..."
-                    sh 'apt-get install zip -y'
                     sh 'pip install --target . --upgrade -r requirements.txt'
-                    sh 'pip install --upgrade pip'
                     // Clean up any __pycache__ directories
                     sh 'find . -name "__pycache__" -type d -print0 | xargs -0 rm -rf || true'
 
-                    // Create the deployment package zip file
-                    sh 'ls -l'
+                    // Create the deployment package zip file in the root of the workspace
                     echo "Creating deployment package zip..."
-                    sh 'zip -r /pdf_converter_app.zip .'
-                    sh 'ls -l pdf_converter_app.zip'
-
+                    sh 'zip -r ../pdf_converter_app.zip .'
                 }
+
+                // Stash the zip file for the next stage
+                echo 'Stashing the deployment package for the next stage...'
+                stash includes: 'pdf_converter_app.zip', name: 'app-code'
             }
         }
 
         // Stage for Terraform initialization and application
         stage ('Terraform Init & Apply') {
+            def hostUserId = sh(returnStdout: true, script: 'id -u').trim()
+            def hostGroupId = sh(returnStdout: true, script: 'id -g').trim()
+
             // This stage will run inside a `hashicorp/terraform:1.5.7` Docker container
             agent {
                 docker {
                     image 'hashicorp/terraform:1.5.7'
-                    args '--entrypoint="" -u root:root'
+                    // Use the host user ID for the container
+                    args "--user ${hostUserId}:${hostGroupId} --entrypoint="
                 }
             }
             steps {
-                // The `script` block is necessary here because of the nested withCredentials step.
                 script {
-                    // The withCredentials block must wrap the commands that need the credentials.
                     withCredentials([
                         string(credentialsId: 'AWS_ACCESS_KEY_ID', variable: 'AWS_ACCESS_KEY_ID'),
                         string(credentialsId: 'AWS_SECRET_ACCESS_KEY', variable: 'AWS_SECRET_ACCESS_KEY')
                     ]) {
+                        // Unstash the zip file from the previous stage
+                        unstash 'app-code'
+
                         echo 'Initializing and Applying Terraform...'
                         
                         dir(env.TF_PATH){
-
-                            // Get the hash of the zip file to trigger a new deployment
-                            echo 'Installing AWS CLI and Python dependencies...'
+                            // The hashicorp/terraform image is based on Alpine Linux, which uses `apk`.
+                            echo 'Installing AWS CLI in the Terraform container...'
+                            sh 'apk update && apk add python3 py3-pip'
                             sh 'pip install awscli'
 
+                            // Get the hash of the zip file to trigger a new deployment
                             def fileHash = sh(returnStdout: true, script: "sha256sum pdf_converter_app.zip | awk '{print \$1}'").trim()
                             
                             // Get the S3 bucket name from a terraform output (or hardcode it if necessary)
@@ -98,11 +113,14 @@ pipeline {
         
         // Stage for fetching and displaying deployment information
         stage('Post-Deployment Info') {
+            def hostUserId = sh(returnStdout: true, script: 'id -u').trim()
+            def hostGroupId = sh(returnStdout: true, script: 'id -g').trim()
+            
             // This stage will also use the Terraform Docker container
             agent {
                 docker {
                     image 'hashicorp/terraform:1.5.7'
-                    args '--entrypoint="" -u root:root'
+                    args "--user ${hostUserId}:${hostGroupId} --entrypoint="
                 }
             }
             steps {
@@ -133,7 +151,7 @@ pipeline {
         failure {
             echo 'Pipeline failed! Check logs for errors.'
         }
-            
+        
         success {
             echo 'Pipeline completed successfully!'
         }

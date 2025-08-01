@@ -36,7 +36,7 @@ pipeline {
             agent {
                 docker {
                     image 'public.ecr.aws/lambda/python:3.10'
-                    args '--user 0'
+                    args '--user 0 --entrypoint=""'
                 }
             }
             steps {
@@ -101,7 +101,7 @@ pipeline {
                             sh 'terraform init -upgrade'
 
                             // Pass all variables in a single terraform apply command
-                            sh "terraform destroy -auto-approve -var 's3_key=${env.ZIP_FILE_NAME}' -var 'source_code_hash=${fileHash}'"
+                            sh "terraform apply -auto-approve -var 's3_key=${env.ZIP_FILE_NAME}' -var 'source_code_hash=${fileHash}'"
                         }
                     }
                 }

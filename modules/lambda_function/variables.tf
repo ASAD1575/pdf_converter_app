@@ -1,5 +1,3 @@
-# modules/lambda/variables.tf
-
 variable "region" {
   description = "The AWS region to deploy the Lambda function in."
   type        = string
@@ -9,11 +7,6 @@ variable "function_name" {
   description = "The name for the Lambda function."
   type        = string
   default     = "pdf-converter-lambda"
-}
-
-variable "source_code_path" {
-  description = "The path to the directory containing your application's Python source code."
-  type        = string
 }
 
 variable "private_subnet_ids" {
@@ -67,11 +60,21 @@ variable "s3_bucket_name" {
   type = string
 }
 
-variable "source_code_hash" {
+variable "source_code_hash_app" {
   description = "The base64-encoded SHA256 hash of the Lambda function's deployment package."
   type        = string
 }
 
-variable "s3_key" {
+variable "source_code_hash_layer" {
+  description = "The base64-encoded SHA256 hash of the Lambda function's layer package."
+  type        = string
+}
+
+variable "s3_key_app" {
   type = string
 }
+
+variable "s3_key_layer" {
+  type = string
+}
+

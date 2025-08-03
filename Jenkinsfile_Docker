@@ -60,10 +60,12 @@ pipeline {
                 pip install -r pdf_converter_FastAPI_app/requirements.txt -t build/dependencies/python/
                 cd build/dependencies && zip -r ../../$LAYER_ZIP . && cd ../..
 
+                # Change OwnerShip of the zip files
                 chown ${hostUserId}:${hostGroupId} $APP_ZIP
                 chown ${hostUserId}:${hostGroupId} $LAYER_ZIP
                 '''
 
+                // Pass the zip files to the next stage
                 stash includes: "${APP_ZIP}", name: 'app-code'
                 stash includes: "${LAYER_ZIP}", name: 'dependencies-layer'
             }
@@ -82,19 +84,27 @@ pipeline {
                         string(credentialsId: 'AWS_ACCESS_KEY_ID', variable: 'AWS_ACCESS_KEY_ID'),
                         string(credentialsId: 'AWS_SECRET_ACCESS_KEY', variable: 'AWS_SECRET_ACCESS_KEY')
                     ]) {
+
+                        // Get the zip files from the previous stage
                         unstash 'app-code'
                         unstash 'dependencies-layer'
 
                         dir(env.TF_PATH) {
+
+                            echo 'Installing Python & Dependencies in Terraform Environment...'
                             sh 'apk add --no-cache python3 py3-pip coreutils'
                             sh 'pip install awscli'
 
                             def fileHashApp = sh(returnStdout: true, script: "sha256sum ${APP_ZIP} | awk '{print \$1}'").trim()
                             def fileHashLayer = sh(returnStdout: true, script: "sha256sum ${LAYER_ZIP} | awk '{print \$1}'").trim()
 
+                            // Copying the zip files to the S3_BUCKET
+                            echo 'Copying the zip files to the AWS_S3_BUCKET...'
                             sh "aws s3 cp ${APP_ZIP} s3://${S3_BUCKET}/"
                             sh "aws s3 cp ${LAYER_ZIP} s3://${S3_BUCKET}/"
 
+                            // Create Dynamodb_Table for Terraform state locking
+                            echo 'Creating Dynamodb_Table for Terraform state locking...'
                             sh """
                                 aws dynamodb create-table \
                                 --table-name terraform-state-lock-table \
@@ -102,7 +112,8 @@ pipeline {
                                 --key-schema AttributeName=LockID,KeyType=HASH \
                                 --provisioned-throughput ReadCapacityUnits=5,WriteCapacityUnits=5
                             """
-
+                            // Initializing Terraform
+                            echo 'Initializing Terraform...'
                             sh 'terraform init -upgrade'
                             sh """
                                 terraform apply -auto-approve \

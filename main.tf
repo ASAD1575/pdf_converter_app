@@ -9,7 +9,7 @@ terraform {
 
 
 # Create DynamoDB Table for State Locking
-resource "aws_dynamodb_table" "use_lockfile" {
+resource "aws_dynamodb_table" "terraform-state-lock-table" {
   name         = "lockfile"
   billing_mode = "PROVISIONED"
   read_capacity  = 5

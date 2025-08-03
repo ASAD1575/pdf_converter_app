@@ -5,19 +5,12 @@ terraform {
       version = "~> 6.6.0"
     }
   }
-   backend "s3" {
-    bucket         = "pdfappbackend"
-    key            = "terraform.tfstate"
-    region         = "us-east-1"
-    dynamodb_table = "terraform-state-lock-table"
-    
-  }
 }
 
 
 # Create DynamoDB Table for State Locking
-resource "aws_dynamodb_table" "terraform_state_lock" {
-  name         = "terraform-state-lock-table"
+resource "aws_dynamodb_table" "use_lockfile" {
+  name         = "lockfile"
   billing_mode = "PROVISIONED"
   read_capacity  = 5
   write_capacity = 5
@@ -69,18 +62,28 @@ module "lambda_function" {
   source                    = "./modules/lambda_function"
   region                    = "us-east-1"
   function_name             = "pdfconverter"
-  source_code_path          = "pdf_converter_FastAPI_app/"
   private_subnet_ids        = module.vpc.private_subnet_ids
   app_security_group_id     = module.security_group.app_security_group_id
-  libreoffice_layer_arn     = "arn:aws:lambda:us-east-1:764866452798:layer:libreoffice-gzip:1"
+  
+  # Layers
+  libreoffice_layer_arn       = "arn:aws:lambda:us-east-1:764866452798:layer:libreoffice-gzip:1"
+  
+  # RDS Environment Variables
   db_host                   = module.rds.rds_endpoint
   db_name                   = module.rds.db_name
   db_password               = module.rds.db_password
   db_port                   = module.rds.db_port
   db_user                   = module.rds.db_username
-  s3_bucket_name            = "pdflambdabucket1575"
-  source_code_hash          = var.source_code_hash
-  s3_key                    = var.s3_key
+  
+  # S3 (Code and Layer Sources)
+  s3_bucket_name      = "pdflambdabucket1575"
+  s3_key_app          =  var.s3_key_app
+  s3_key_layer        = var.s3_key_layer
+
+  # Ensures Terraform detects zip changes
+  source_code_hash_app = var.source_code_hash_app
+  source_code_hash_layer = var.source_code_hash_layer
+  
 }
 
 # Add the API Gateway module
@@ -114,7 +117,7 @@ module "cloudwatch" {
 resource "null_resource" "update_local_env" {
   depends_on = [
     module.rds,
-    module.api_gateway,
+    # module.api_gateway,
   ]
 
   provisioner "local-exec" {

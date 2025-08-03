@@ -6,8 +6,9 @@ pipeline {
         AWS_DEFAULT_REGION = 'us-east-1'
         APP_SOURCE_PATH = 'pdf_converter_FastAPI_app/'
         TF_PATH = '.'                                   // Defines the path to your Terraform configuration files
-        S3_BUCKET_NAME = "pdflambdabucket1575"
-        ZIP_FILE_NAME = 'pdf_converter_app.zip'
+        APP_ZIP="app_package.zip"
+        LAYER_ZIP="dependencies_layer.zip"
+        S3_BUCKET="pdflambdabucket1575"
     }
 
     // Define variables for host user and group ID at the pipeline level
@@ -44,34 +45,57 @@ pipeline {
                 sh 'yum update && yum install -y zip'
 
                 dir("${env.APP_SOURCE_PATH}") {
-                    echo "Installing dependencies into ${env.APP_SOURCE_PATH}..."
-                    sh 'pip install --target . --upgrade -r requirements.txt'
+                    echo "Creating & Installing Application Build with Dependencies..."
+                    // Cleanup Old Build
+                    sh 
+                    '''
+                    rm -f $APP_ZIP $LAYER_ZIP
+                    rm -rf build
+                    mkdir -p build
+                    '''
+                    // Build Application zip
+                    echo "Building Application zip ${env.APP_SOURCE_PATH}..."
+                    sh 
+                    '''
+                    mkdir -p build/app
+                    cp -r main.py database.py models.py utils.py templates static build/app/
+                    cd build/app
+                    zip -r ../../$APP_ZIP .
+                    cd ../..
+                    '''
                     
-                    // Clean up any __pycache__ directories
-                    sh 'find . -name "__pycache__" -type d | xargs -r rm -rf'
+                    // Build dependencies layer zip
+                    echo "Building Dependencies layer zip ${env.APP_SOURCE_PATH}..."
+                    sh 
+                    '''
+                    mkdir -p build/dependencies/python
+                    pip install -r requirements.txt -t build/dependencies/python/
+                    cd build/dependencies
+                    zip -r ../../$LAYER_ZIP .
+                    cd ../..
+                    '''
 
-                    // Create the deployment package zip file in the root of the workspace
-                    echo "Creating deployment package zip..."
-                    sh 'zip -r ../pdf_converter_app.zip .'
                 }
 
                 // IMPORTANT: Change ownership of the zipped file back to the Jenkins user.
-                sh "chown ${env.hostUserId}:${env.hostGroupId} pdf_converter_app.zip"
+                sh 
+                '''
+                chown ${env.hostUserId}:${env.hostGroupId} ${en.APP_ZIP}
+                Chown ${env.hostUserId}:${env.hostGroupId} ${en.LAYER_ZIP}
+                '''
 
                 // Stash the zip file for the next stage
                 echo 'Stashing the deployment package for the next stage...'
-                stash includes: 'pdf_converter_app.zip', name: 'app-code'
+                stash includes: '${env.APP_ZIP}', name: 'app-code'
+                stash includes: '${env.LAYER_ZIP}', name: 'dependencies-layer'
             }
         }
 
         // Stage for Terraform initialization and application
         stage ('Terraform Init & Apply') {
-            // This stage will run inside a `hashicorp/terraform:1.5.7` Docker container
             agent {
                 docker {
                     image 'hashicorp/terraform:1.5.7'
-                    // FIX: Run as root, disable entrypoint, AND provide a public DNS server
-                    // to fix the i/o timeout error when connecting to registry.terraform.io.
                     args '--user 0 --entrypoint="" --dns 8.8.8.8'
                 }
             }
@@ -83,6 +107,7 @@ pipeline {
                     ]) {
                         // Unstash the zip file from the previous stage
                         unstash 'app-code'
+                        unstash 'dependencies-layer'
 
                         echo 'Initializing and Applying Terraform...'
                         
@@ -92,16 +117,18 @@ pipeline {
                             sh 'apk update && apk add python3 py3-pip'
                             sh 'pip install awscli'
 
-                            def fileHash = sh(returnStdout: true, script: "sha256sum pdf_converter_app.zip | awk '{print \$1}'").trim()
+                            def fileHash_1 = sh(returnStdout: true, script: "sha256sum ${env.APP_ZIP} | awk '{print \$1}'").trim()
+                            def fileHash_2 = sh(returnStdout: true, script: "sha256sum ${env.LAYER_ZIP} | awk '{print \$1}'").trim()
                             
                             // Upload the zip file to the manually created S3 bucket
-                            echo "Uploading ${env.ZIP_FILE_NAME} to S3 bucket ${env.S3_BUCKET_NAME}..."
-                            sh "aws s3 cp ${env.ZIP_FILE_NAME} s3://${env.S3_BUCKET_NAME}/"
+                            echo "Uploading ${env.APP_ZIP} to S3 bucket ${env.S3_BUCKET_NAME}..."
+                            sh "aws s3 cp ${env.APP_ZIP} s3://${env.S3_BUCKET_NAME}/"
+                            sh "aws s3 cp ${env.LAYER_ZIP} s3://${env.S3_BUCKET_NAME}/"
 
                             sh 'terraform init -upgrade'
 
                             // Pass all variables in a single terraform apply command
-                            sh "terraform apply -auto-approve -var 's3_key=${env.ZIP_FILE_NAME}' -var 'source_code_hash=${fileHash}'"
+                            sh "terraform apply -auto-approve -var 's3_key_app=${env.APP_ZIP}' -var 'source_code_hash_app=${fileHash_1}' -var 's3_key_layer=${env.LAYER_ZIP}' -var 'source_code_hash_layer=${fileHash_2}'"
                         }
                     }
                 }

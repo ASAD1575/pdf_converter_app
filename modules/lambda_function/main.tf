@@ -1,124 +1,138 @@
-# modules/lambda/main.tf
-
-provider "aws" {
-  region = var.region
-}
-
-# 1. IAM Role for Lambda Function
-# This role grants the Lambda function permissions to execute,
-# access VPC resources (for RDS), and write logs to CloudWatch.
-resource "aws_iam_role" "lambda_exec_role" {
-  name = "${var.function_name}-exec-role"
-
-  assume_role_policy = jsonencode({
-    Version = "2012-10-17",
-    Statement = [
-      {
-        Action = "sts:AssumeRole",
-        Effect = "Allow",
-        Principal = {
-          Service = "lambda.amazonaws.com"
-        }
-      }
-    ]
-  })
-
-  tags = {
-    Name = "${var.function_name}-exec-role"
-  }
-}
-
-# Attach the basic Lambda execution policy
-resource "aws_iam_role_policy_attachment" "lambda_basic_execution" {
-  role       = aws_iam_role.lambda_exec_role.name
-  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
-}
-
-# Attach the VPC access policy (required for RDS connectivity)
-resource "aws_iam_role_policy_attachment" "lambda_vpc_access" {
-  role       = aws_iam_role.lambda_exec_role.name
-  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole"
-}
-
-resource "aws_iam_role_policy" "lambda_s3_access" {
-  name = "${var.function_name}-s3-access-policy"
-  role = aws_iam_role.lambda_exec_role.id
-
-  policy = jsonencode({
-    Version = "2012-10-17",
-    Statement = [
-      {
-        Action = [
-          "s3:PutObject",
-          "s3:GetObject",
-          "s3:DeleteObject",
-          "s3:ListBucket" # Needed for some S3 operations, e.g., if you list contents
-        ],
-        Effect   = "Allow",
-        Resource = [
-          "arn:aws:s3:::${var.s3_bucket_name}",
-          "arn:aws:s3:::${var.s3_bucket_name}/*"
-        ]
-      }
-    ]
-  })
-}
-
-
-# --- NEW: 2. AWS Lambda Layer for Python Dependencies ---
-# This resource deploys the dependencies.zip file created by Jenkins.
-resource "aws_lambda_layer_version" "dependencies_layer" {
-  layer_name          = "${var.function_name}-dependencies"
-  s3_bucket           = var.s3_bucket_name
-  s3_key              = var.dependencies_zip_file_name
-  source_code_hash    = var.dependencies_code_hash
-  compatible_runtimes = ["python3.10"]
-
-  tags = {
-    Name = "${var.function_name}-dependencies-layer"
-  }
-}
-
-
-# --- MODIFIED: 3. AWS Lambda Function ---
-resource "aws_lambda_function" "pdf_converter_app" {
-  function_name = var.function_name
-  handler       = "main.app" 
-  runtime       = "python3.10"
-  role          = aws_iam_role.lambda_exec_role.arn
-  timeout       = 300
-  memory_size   = 1024
-
-  # The S3 key and hash now point to the application code package
-  s3_bucket = var.s3_bucket_name
-  s3_key = var.app_zip_file_name
-  source_code_hash = var.app_code_hash
-
-  # VPC Configuration (to access RDS)
-  vpc_config {
-    subnet_ids         = var.private_subnet_ids
-    security_group_ids = [var.app_security_group_id]
-  }
-
-  # Lambda Layers now includes both the new dependencies layer and the LibreOffice layer
-  layers = [
-    aws_lambda_layer_version.dependencies_layer.arn, # Your new dependencies layer
-    var.libreoffice_layer_arn # The original LibreOffice layer
-  ]
-
-  # Environment variables for the application (e.g., database connection)
-  environment {
-    variables = {
-      DB_HOST     = var.db_host
-      DB_NAME     = var.db_name
-      DB_USER     = var.db_user
-      DB_PASSWORD = var.db_password
-      DB_PORT     = var.db_port
-      S3_BUCKET_NAME = var.s3_bucket_name
+terraform {
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = "~> 6.6.0"
     }
   }
+   backend "s3" {
+    bucket         = "pdfappbackend"
+    key            = "terraform.tfstate"
+    region         = "us-east-1"
+    dynamodb_table = "terraform-state-lock-table"
+    
+  }
+}
+
+
+# Create DynamoDB Table for State Locking
+resource "aws_dynamodb_table" "terraform_state_lock" {
+  name         = "terraform-state-lock-table"
+  billing_mode = "PROVISIONED"
+  read_capacity  = 5
+  write_capacity = 5
+  hash_key     = "LockID"
+
+  attribute {
+    name = "LockID"
+    type = "S"
+  }
 
   tags = {
-    Name = var.function_name
+    Name = "pdfappbackend"
+  }
+  
+}
+
+# Configure the AWS provider
+provider "aws" {
+  region = "us-east-1"
+}
+
+module "vpc" {
+  source = "./modules/vpc"
+  cidr_block = "10.0.0.0/16"
+  region = "us-east-1"
+}
+
+module "security_group" {
+  source = "./modules/security_group"
+  vpc_id = module.vpc.vpc_id
+}
+
+module "rds" {
+  source            = "./modules/rds"
+  region            = "us-east-1"
+  identifier        = "pdfconverterdb"
+  instance_class    = "db.t3.micro"
+  engine            = "postgres"
+  engine_version    = "14"
+  database_name     = "pdfconverterdb"
+  db_username       = "dbuser"
+  db_password       = "Subhani786"
+  port              = 5432
+  security_group    = module.security_group.app_sg_id
+  db_subnet_ids     = module.vpc.private_subnet_ids
+}
+
+module "lambda_function" {
+  source                    = "./modules/lambda_function"
+  region                    = "us-east-1"
+  function_name             = "pdfconverter"
+  source_code_path          = "pdf_converter_FastAPI_app/"
+  private_subnet_ids        = module.vpc.private_subnet_ids
+  app_security_group_id     = module.security_group.app_security_group_id
+  libreoffice_layer_arn     = "arn:aws:lambda:us-east-1:764866452798:layer:libreoffice-gzip:1"
+  db_host                   = module.rds.rds_endpoint
+  db_name                   = module.rds.db_name
+  db_password               = module.rds.db_password
+  db_port                   = module.rds.db_port
+  db_user                   = module.rds.db_username
+  s3_bucket_name            = "pdflambdabucket1575"
+  source_code_hash          = var.source_code_hash
+  s3_key                    = var.s3_key
+}
+
+# Add the API Gateway module
+module "api_gateway" {
+  source      = "./modules/api_gateway"
+  region      = "us-east-1" # Use the region from the provider configuration
+  api_name    = "pdf-converter-api"
+# 
+  # These inputs need to come from your Lambda function module's outputs.
+  # You'll need to define and deploy your Lambda function (e.g., using a 'lambda' module)
+  # and then pass its name, ARN, and invoke ARN here.
+  # For now, these are placeholders.
+  lambda_function_name       = module.lambda_function.function_name # Replace with actual Lambda function name
+  lambda_function_arn        = module.lambda_function.function_arn # Replace with actual Lambda ARN
+  lambda_function_invoke_arn = module.lambda_function.function_invoke_arn
+}
+
+module "cloudwatch" {
+  source = "./modules/cloudwatch"
+  region = "us-east-1"
+  # Pass the function name from your Lambda module or CloudFormation stack
+  function_name = module.lambda_function.function_name # If using Terraform Lambda module
+  # OR if using CloudFormation for Lambda:
+  # function_name = aws_cloudformation_stack.pdf_converter_lambda_cfn.outputs.FunctionName
+  log_retention_in_days = 7 # Set your desired log retention
+  environment           = "dev" # Or "prod", etc.
+}
+
+
+# --- Automation for local .env file update ---
+resource "null_resource" "update_local_env" {
+  depends_on = [
+    module.rds,
+    module.api_gateway,
+  ]
+
+  provisioner "local-exec" {
+    # Use a multi-line heredoc to write the environment variables directly.
+    # This avoids any path or permission issues with a separate script file.
+    command = <<-EOT
+      echo "Writing environment variables to ./pdf_converter_FastAPI_app/.env"
+      cat << EOF > ./pdf_converter_FastAPI_app/.env
+      # Environment variables for PDF Converter FastAPI App
+      # Generated by Terraform output script
+
+      DB_HOST="${module.rds.rds_endpoint}"
+      DB_NAME="${module.rds.db_name}"
+      DB_USER="${module.rds.db_username}"
+      DB_PASSWORD="${module.rds.db_password}"
+      DB_PORT="${module.rds.db_port}"
+      EOF
+      echo "Successfully updated ./pdf_converter_FastAPI_app/.env"
+    EOT
   }
 }

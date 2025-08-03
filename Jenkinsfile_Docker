@@ -43,6 +43,7 @@ pipeline {
                 rm -f $APP_ZIP $LAYER_ZIP
                 rm -rf build
                 mkdir -p build/app build/dependencies/python
+                ls -l
 
                 # Build app zip
                 cp -r main.py database.py models.py utils.py templates static build/app/

@@ -2,30 +2,26 @@ from fastapi import FastAPI, Request, Form, UploadFile, File, Query
 from fastapi.responses import HTMLResponse, RedirectResponse, FileResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
-# The 'dotenv' import and 'load_dotenv()' call are removed for Lambda deployment.
-# AWS Lambda will directly inject environment variables configured via Terraform.
-# from dotenv import load_dotenv
-# load_dotenv() # This loads variables from .env into os.environ
+from mangum import Mangum  # <-- Added for AWS Lambda support
 
 # Assuming these functions exist in your database.py and handle user/token operations
 from database import create_user, verify_user, get_user_by_email, get_user_by_username, update_user_password
 import os
 import subprocess
 import uuid
-import boto3 # Import boto3 for AWS S3 interaction
-import tempfile # For creating temporary files in Lambda's /tmp directory
+import boto3  # Import boto3 for AWS S3 interaction
+import tempfile  # For creating temporary files in Lambda's /tmp directory
 
 app = FastAPI()
 templates = Jinja2Templates(directory="templates")
-# In Lambda, static files are typically served from S3 or CloudFront, not directly by FastAPI.
-# For local development, this mount is fine. For Lambda, you'd likely use CloudFront.
+
+# For local dev only; in production use S3/CloudFront for static files
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
-# Get S3 bucket name from environment variables
-# This will be set by Terraform when deploying to Lambda
+# Get S3 bucket name from environment variables (set in Terraform)
 S3_BUCKET_NAME = os.getenv("S3_BUCKET_NAME")
 
-# Initialize S3 client (will use IAM role credentials in Lambda)
+# Initialize S3 client (uses IAM role credentials in Lambda)
 s3_client = boto3.client("s3")
 
 # --- PDF conversion endpoint ---
@@ -39,30 +35,22 @@ async def convert_to_pdf(file: UploadFile = File(...)):
     docx_s3_key = f"uploads/{file_id}.docx"
     pdf_s3_key = f"converted_pdfs/{file_id}.pdf"
 
-    # Use tempfile to create temporary files in Lambda's /tmp directory
-    # The /tmp directory is the only writable location in Lambda
     with tempfile.NamedTemporaryFile(delete=False, suffix=".docx") as temp_docx_file:
-        # Read the uploaded file content and write to the temporary file
         content = await file.read()
         temp_docx_file.write(content)
         temp_docx_file_path = temp_docx_file.name
 
-    # Upload the original DOCX file to S3 (optional, but good for auditing/reprocessing)
     try:
         s3_client.upload_file(temp_docx_file_path, S3_BUCKET_NAME, docx_s3_key)
         print(f"Uploaded {original_filename} to s3://{S3_BUCKET_NAME}/{docx_s3_key}")
     except Exception as e:
         print(f"Error uploading DOCX to S3: {e}")
-        os.remove(temp_docx_file_path) # Clean up temp file
+        os.remove(temp_docx_file_path)
         return JSONResponse({"status": "failed", "message": "Failed to upload DOCX to S3."}, status_code=500)
 
-    # Prepare output path in /tmp for PDF conversion
     temp_pdf_file_path = os.path.join(tempfile.gettempdir(), f"{file_id}.pdf")
 
-    # Ensure libreoffice is installed and accessible in your environment (via Lambda Layer)
     try:
-        # LibreOffice command to convert DOCX to PDF
-        # The --outdir must be a writable directory, so we use /tmp
         subprocess.run(
             ["libreoffice", "--headless", "--convert-to", "pdf", temp_docx_file_path, "--outdir", tempfile.gettempdir()],
             check=True
@@ -72,13 +60,11 @@ async def convert_to_pdf(file: UploadFile = File(...)):
         print(f"LibreOffice conversion failed: {e}")
         return JSONResponse({"status": "failed", "message": "PDF conversion failed."}, status_code=500)
     except FileNotFoundError:
-        print("LibreOffice command not found. Please ensure LibreOffice is installed and in your PATH (via Lambda Layer).")
+        print("LibreOffice command not found. Ensure LibreOffice is installed via Lambda Layer.")
         return JSONResponse({"status": "failed", "message": "Server error: PDF converter not found."}, status_code=500)
     finally:
-        # Clean up the temporary DOCX file immediately
         os.remove(temp_docx_file_path)
 
-    # Check if PDF was created and upload to S3
     if os.path.exists(temp_pdf_file_path):
         try:
             s3_client.upload_file(temp_pdf_file_path, S3_BUCKET_NAME, pdf_s3_key)
@@ -88,7 +74,7 @@ async def convert_to_pdf(file: UploadFile = File(...)):
             print(f"Error uploading PDF to S3: {e}")
             return JSONResponse({"status": "failed", "message": "Failed to upload converted PDF to S3."}, status_code=500)
         finally:
-            os.remove(temp_pdf_file_path) # Clean up temporary PDF file
+            os.remove(temp_pdf_file_path)
     else:
         return JSONResponse({"status": "failed", "message": "PDF output file not found after conversion."}, status_code=500)
 
@@ -101,14 +87,11 @@ async def download_pdf(file_id: str):
     pdf_s3_key = f"converted_pdfs/{file_id}.pdf"
 
     try:
-        # Generate a pre-signed URL for direct download/view from S3
-        # This is more efficient than streaming through Lambda
         presigned_url = s3_client.generate_presigned_url(
             'get_object',
             Params={'Bucket': S3_BUCKET_NAME, 'Key': pdf_s3_key},
-            ExpiresIn=300 # URL valid for 5 minutes
+            ExpiresIn=300
         )
-        # Redirect the client to the pre-signed URL
         return RedirectResponse(presigned_url, status_code=303)
     except s3_client.exceptions.ClientError as e:
         if e.response['Error']['Code'] == 'NoSuchKey':
@@ -117,8 +100,8 @@ async def download_pdf(file_id: str):
             print(f"Error generating presigned URL: {e}")
             return JSONResponse({"error": "Could not generate download link."}, status_code=500)
     except Exception as e:
-        print(f"An unexpected error occurred: {e}")
-        return JSONResponse({"error": "An unexpected server error occurred."}, status_code=500)
+        print(f"Unexpected error: {e}")
+        return JSONResponse({"error": "Unexpected server error."}, status_code=500)
 
 
 # --- Registration ---
@@ -128,9 +111,10 @@ async def register_form(request: Request):
 
 @app.post("/register")
 async def register_user(request: Request, username: str = Form(...), email: str = Form(...), password: str = Form(...)):
-    if create_user(username, email, password): # Assumes create_user handles unique username/email
+    if create_user(username, email, password):
         return RedirectResponse("/login?message=registration_success", status_code=303)
     return templates.TemplateResponse("register.html", {"request": request, "error": "Username or Email already exists"})
+
 
 # --- Login ---
 @app.get("/login", response_class=HTMLResponse)
@@ -144,6 +128,7 @@ async def login(request: Request, username: str = Form(...), password: str = For
     if verify_user(username, password):
         return RedirectResponse(f"/dashboard?username={username}", status_code=303)
     return templates.TemplateResponse("login.html", {"request": request, "error": "Invalid username or password"})
+
 
 # --- Direct Password Reset ---
 @app.get("/forgot_password", response_class=HTMLResponse)
@@ -168,7 +153,8 @@ async def reset_password_direct(request: Request, username_or_email: str = Form(
     else:
         return templates.TemplateResponse("forgot_password.html", {"request": request, "error": "No account found with that username or email."})
 
-# --- Root and dashboard ---
+
+# --- Root and Dashboard ---
 @app.get("/", response_class=HTMLResponse)
 async def root(request: Request):
     return templates.TemplateResponse("login.html", {"request": request})
@@ -177,3 +163,7 @@ async def root(request: Request):
 async def dashboard(request: Request, username: str = Query("Guest")):
     user = {"username": username}
     return templates.TemplateResponse("dashboard.html", {"request": request, "user": user})
+
+
+# Lambda entry point for AWS
+handler = Mangum(app)

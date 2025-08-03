@@ -5,13 +5,12 @@ pipeline {
         AWS_ACCOUNT_ID = '375299695019'
         AWS_DEFAULT_REGION = 'us-east-1'
         APP_SOURCE_PATH = 'pdf_converter_FastAPI_app/'
-        TF_PATH = '.'                                   // Defines the path to your Terraform configuration files
-        APP_ZIP="app_package.zip"
-        LAYER_ZIP="dependencies_layer.zip"
-        S3_BUCKET="pdflambdabucket1575"
+        TF_PATH = '.'
+        APP_ZIP = "app_package.zip"
+        LAYER_ZIP = "dependencies_layer.zip"
+        S3_BUCKET = "pdflambdabucket1575"
     }
 
-    // Define variables for host user and group ID at the pipeline level
     stages {
         stage('Initialize Variables') {
             steps {
@@ -22,18 +21,15 @@ pipeline {
                 }
             }
         }
-        
-        // This stage checks out the source code from SCM.
+
         stage('Checkout Source') {
             steps {
-                echo 'Checking out source code from SCM...'
+                echo 'Checking out source code...'
                 checkout scm
             }
         }
 
-        // Stage to install Python dependencies for the Lambda function
-        stage('Install Build Tools & Dependencies') {
-            // Specifies that this stage will run inside a `python:3.9-slim` Docker container
+        stage('Build Lambda Packages') {
             agent {
                 docker {
                     image 'public.ecr.aws/lambda/python:3.10'
@@ -41,58 +37,31 @@ pipeline {
                 }
             }
             steps {
-                echo 'Updating package list and installing zip...'
-                sh 'yum update && yum install -y zip'
+                sh '''
+                yum install -y zip
 
-                dir("${env.APP_SOURCE_PATH}") {
-                    echo "Creating & Installing Application Build with Dependencies..."
-                    // Cleanup Old Build
-                    sh 
-                    '''
-                    rm -f $APP_ZIP $LAYER_ZIP
-                    rm -rf build
-                    mkdir -p build
-                    '''
-                    // Build Application zip
-                    echo "Building Application zip ${env.APP_SOURCE_PATH}..."
-                    sh 
-                    '''
-                    mkdir -p build/app
-                    cp -r main.py database.py models.py utils.py templates static build/app/
-                    cd build/app
-                    zip -r ../../$APP_ZIP .
-                    cd ../..
-                    '''
-                    
-                    // Build dependencies layer zip
-                    echo "Building Dependencies layer zip ${env.APP_SOURCE_PATH}..."
-                    sh 
-                    '''
-                    mkdir -p build/dependencies/python
-                    pip install -r requirements.txt -t build/dependencies/python/
-                    cd build/dependencies
-                    zip -r ../../$LAYER_ZIP .
-                    cd ../..
-                    '''
+                rm -f $APP_ZIP $LAYER_ZIP
+                rm -rf build
+                mkdir -p build/app build/dependencies/python
 
-                }
+                # Build app zip
+                cp -r main.py database.py models.py utils.py templates static build/app/
+                cd build/app && zip -r ../../$APP_ZIP . && cd ../..
 
-                // IMPORTANT: Change ownership of the zipped file back to the Jenkins user.
-                sh 
-                '''
-                chown ${env.hostUserId}:${env.hostGroupId} ${en.APP_ZIP}
-                Chown ${env.hostUserId}:${env.hostGroupId} ${en.LAYER_ZIP}
+                # Build dependencies layer zip
+                pip install -r requirements.txt -t build/dependencies/python/
+                cd build/dependencies && zip -r ../../$LAYER_ZIP . && cd ../..
+
+                chown ${hostUserId}:${hostGroupId} $APP_ZIP
+                chown ${hostUserId}:${hostGroupId} $LAYER_ZIP
                 '''
 
-                // Stash the zip file for the next stage
-                echo 'Stashing the deployment package for the next stage...'
-                stash includes: '${env.APP_ZIP}', name: 'app-code'
-                stash includes: '${env.LAYER_ZIP}', name: 'dependencies-layer'
+                stash includes: "${APP_ZIP}", name: 'app-code'
+                stash includes: "${LAYER_ZIP}", name: 'dependencies-layer'
             }
         }
 
-        // Stage for Terraform initialization and application
-        stage ('Terraform Init & Apply') {
+        stage('Terraform Deploy') {
             agent {
                 docker {
                     image 'hashicorp/terraform:1.5.7'
@@ -105,39 +74,34 @@ pipeline {
                         string(credentialsId: 'AWS_ACCESS_KEY_ID', variable: 'AWS_ACCESS_KEY_ID'),
                         string(credentialsId: 'AWS_SECRET_ACCESS_KEY', variable: 'AWS_SECRET_ACCESS_KEY')
                     ]) {
-                        // Unstash the zip file from the previous stage
                         unstash 'app-code'
                         unstash 'dependencies-layer'
 
-                        echo 'Initializing and Applying Terraform...'
-                        
-                        dir(env.TF_PATH){
-                            // The hashicorp/terraform image is based on Alpine Linux, which uses `apk`.
-                            echo 'Installing AWS CLI in the Terraform container...'
-                            sh 'apk update && apk add python3 py3-pip'
+                        dir(env.TF_PATH) {
+                            sh 'apk add --no-cache python3 py3-pip coreutils'
                             sh 'pip install awscli'
 
-                            def fileHash_1 = sh(returnStdout: true, script: "sha256sum ${env.APP_ZIP} | awk '{print \$1}'").trim()
-                            def fileHash_2 = sh(returnStdout: true, script: "sha256sum ${env.LAYER_ZIP} | awk '{print \$1}'").trim()
-                            
-                            // Upload the zip file to the manually created S3 bucket
-                            echo "Uploading ${env.APP_ZIP} to S3 bucket ${env.S3_BUCKET_NAME}..."
-                            sh "aws s3 cp ${env.APP_ZIP} s3://${env.S3_BUCKET_NAME}/"
-                            sh "aws s3 cp ${env.LAYER_ZIP} s3://${env.S3_BUCKET_NAME}/"
+                            def fileHashApp = sh(returnStdout: true, script: "sha256sum ${APP_ZIP} | awk '{print \$1}'").trim()
+                            def fileHashLayer = sh(returnStdout: true, script: "sha256sum ${LAYER_ZIP} | awk '{print \$1}'").trim()
+
+                            sh "aws s3 cp ${APP_ZIP} s3://${S3_BUCKET}/"
+                            sh "aws s3 cp ${LAYER_ZIP} s3://${S3_BUCKET}/"
 
                             sh 'terraform init -upgrade'
-
-                            // Pass all variables in a single terraform apply command
-                            sh "terraform apply -auto-approve -var 's3_key_app=${env.APP_ZIP}' -var 'source_code_hash_app=${fileHash_1}' -var 's3_key_layer=${env.LAYER_ZIP}' -var 'source_code_hash_layer=${fileHash_2}'"
+                            sh """
+                                terraform apply -auto-approve \
+                                -var 's3_key_app=${APP_ZIP}' \
+                                -var 'source_code_hash_app=${fileHashApp}' \
+                                -var 's3_key_layer=${LAYER_ZIP}' \
+                                -var 'source_code_hash_layer=${fileHashLayer}'
+                            """
                         }
                     }
                 }
             }
         }
-        
-        // Stage for fetching and displaying deployment information
+
         stage('Post-Deployment Info') {
-            // This stage will also use the Terraform Docker container
             agent {
                 docker {
                     image 'hashicorp/terraform:1.5.7'
@@ -149,32 +113,20 @@ pipeline {
                     withCredentials([
                         string(credentialsId: 'AWS_ACCESS_KEY_ID', variable: 'AWS_ACCESS_KEY_ID'),
                         string(credentialsId: 'AWS_SECRET_ACCESS_KEY', variable: 'AWS_SECRET_ACCESS_KEY')
-                    ]) {    
-                        echo 'Fetching deployment outputs...'
+                    ]) {
                         dir(env.TF_PATH) {
-                            // Assigning the output to a variable requires a `script` block.
                             def apiGatewayUrl = sh(returnStdout: true, script: 'terraform output -raw api_gateway_url').trim()
-                            echo "Deployment Complete! Your application is accessible at: ${apiGatewayUrl}"
+                            echo "Deployment Complete! Your API Gateway URL: ${apiGatewayUrl}"
                         }
                     }
                 }
             }
         }
-    }  
+    }
 
-    // Post-build actions
     post {
-        always {
-            echo 'Cleaning up workspace...'
-            // cleanWs() // Uncomment to clean the workspace after every build
-        }
-            
-        failure {
-            echo 'Pipeline failed! Check logs for errors.'
-        }
-        
-        success {
-            echo 'Pipeline completed successfully!'
-        }
-    } 
+        always { echo 'Cleaning up...' }
+        failure { echo 'Pipeline failed!' }
+        success { echo 'Pipeline completed successfully!' }
+    }
 }

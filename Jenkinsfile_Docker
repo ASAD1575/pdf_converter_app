@@ -95,6 +95,14 @@ pipeline {
                             sh "aws s3 cp ${APP_ZIP} s3://${S3_BUCKET}/"
                             sh "aws s3 cp ${LAYER_ZIP} s3://${S3_BUCKET}/"
 
+                            sh """
+                                aws dynamodb create-table \
+                                --table-name terraform-state-lock-table \
+                                --attribute-definitions AttributeName=LockID,AttributeType=S \
+                                --key-schema AttributeName=LockID,KeyType=HASH \
+                                --provisioned-throughput ReadCapacityUnits=5,WriteCapacityUnits=5
+                            """
+
                             sh 'terraform init -upgrade'
                             sh """
                                 terraform apply -auto-approve \

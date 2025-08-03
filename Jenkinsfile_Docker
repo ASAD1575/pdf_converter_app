@@ -46,11 +46,18 @@ pipeline {
                 ls -l
 
                 # Build app zip
-                cp -r main.py database.py models.py utils.py templates static build/app/
+                cp -r pdf_converter_FastAPI_app/main.py \
+                    pdf_converter_FastAPI_app/database.py \
+                    pdf_converter_FastAPI_app/models.py \
+                    pdf_converter_FastAPI_app/utils.py \
+                    pdf_converter_FastAPI_app/templates \
+                    pdf_converter_FastAPI_app/static \
+                    build/app/
+                
                 cd build/app && zip -r ../../$APP_ZIP . && cd ../..
 
                 # Build dependencies layer zip
-                pip install -r requirements.txt -t build/dependencies/python/
+                pip install -r pdf_converter_FastAPI_app/requirements.txt -t build/dependencies/python/
                 cd build/dependencies && zip -r ../../$LAYER_ZIP . && cd ../..
 
                 chown ${hostUserId}:${hostGroupId} $APP_ZIP

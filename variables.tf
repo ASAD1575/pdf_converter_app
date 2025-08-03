@@ -1,20 +1,12 @@
+variable "source_code_hash" {
+  type = string
+}
+
 variable "region" {
   type = string
   default = "us-east-1"
 }
 
-variable "app_zip_file_name" {
-  type = string
-}
-
-variable "app_code_hash" {
-  type = string
-}
-
-variable "dependencies_zip_file_name" {
-  type = string
-}
-
-variable "dependencies_code_hash" {
+variable "s3_key" {
   type = string
 }

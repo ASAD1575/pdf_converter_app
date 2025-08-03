@@ -9,23 +9,23 @@ terraform {
 
 
 # Create DynamoDB Table for State Locking
-resource "aws_dynamodb_table" "terraform-state-lock-table" {
-  name         = "lockfile"
-  billing_mode = "PROVISIONED"
-  read_capacity  = 5
-  write_capacity = 5
-  hash_key     = "LockID"
+# resource "aws_dynamodb_table" "terraform-state-lock-table" {
+#   name         = "lockfile"
+#   billing_mode = "PROVISIONED"
+#   read_capacity  = 5
+#   write_capacity = 5
+#   hash_key     = "LockID"
 
-  attribute {
-    name = "LockID"
-    type = "S"
-  }
+#   attribute {
+#     name = "LockID"
+#     type = "S"
+#   }
 
-  tags = {
-    Name = "pdfappbackend"
-  }
+#   tags = {
+#     Name = "pdfappbackend"
+#   }
   
-}
+# }
 
 # Configure the AWS provider
 provider "aws" {

@@ -5,28 +5,38 @@ terraform {
       version = "~> 6.6.0"
     }
   }
+   backend "s3" {
+    bucket         = "pdfappbackend"
+    key            = "terraform.tfstate"
+    region         = "us-east-1"
+    dynamodb_table = "terraform-state-lock-table"
+    
+  }
+}
+
+
+# Create DynamoDB Table for State Locking
+resource "aws_dynamodb_table" "terraform_state_lock" {
+  name         = "terraform-state-lock-table"
+  billing_mode = "PROVISIONED"
+  read_capacity  = 5
+  write_capacity = 5
+  hash_key     = "LockID"
+
+  attribute {
+    name = "LockID"
+    type = "S"
+  }
+
+  tags = {
+    Name = "pdfappbackend"
+  }
+  
 }
 
 # Configure the AWS provider
 provider "aws" {
   region = "us-east-1"
-}
-
-# Define the variables that will be passed from Jenkins
-variable "app_zip_file_name" {
-  type = string
-}
-
-variable "app_code_hash" {
-  type = string
-}
-
-variable "dependencies_zip_file_name" {
-  type = string
-}
-
-variable "dependencies_code_hash" {
-  type = string
 }
 
 module "vpc" {
@@ -59,6 +69,7 @@ module "lambda_function" {
   source                    = "./modules/lambda_function"
   region                    = "us-east-1"
   function_name             = "pdfconverter"
+  source_code_path          = "pdf_converter_FastAPI_app/"
   private_subnet_ids        = module.vpc.private_subnet_ids
   app_security_group_id     = module.security_group.app_security_group_id
   libreoffice_layer_arn     = "arn:aws:lambda:us-east-1:764866452798:layer:libreoffice-gzip:1"
@@ -68,31 +79,38 @@ module "lambda_function" {
   db_port                   = module.rds.db_port
   db_user                   = module.rds.db_username
   s3_bucket_name            = "pdflambdabucket1575"
-
-  # Pass the new variables from the root module to the child module.
-  app_zip_file_name          = var.app_zip_file_name
-  app_code_hash              = var.app_code_hash
-  dependencies_zip_file_name = var.dependencies_zip_file_name
-  dependencies_code_hash     = var.dependencies_code_hash
+  source_code_hash          = var.source_code_hash
+  s3_key                    = var.s3_key
 }
 
+# Add the API Gateway module
 module "api_gateway" {
-  source               = "./modules/api_gateway"
-  region               = "us-east-1"
-  api_name             = "pdf-converter-api"
-  lambda_function_name = module.lambda_function.function_name
-  lambda_function_arn  = module.lambda_function.function_arn
+  source      = "./modules/api_gateway"
+  region      = "us-east-1" # Use the region from the provider configuration
+  api_name    = "pdf-converter-api"
+# 
+  # These inputs need to come from your Lambda function module's outputs.
+  # You'll need to define and deploy your Lambda function (e.g., using a 'lambda' module)
+  # and then pass its name, ARN, and invoke ARN here.
+  # For now, these are placeholders.
+  lambda_function_name       = module.lambda_function.function_name # Replace with actual Lambda function name
+  lambda_function_arn        = module.lambda_function.function_arn # Replace with actual Lambda ARN
   lambda_function_invoke_arn = module.lambda_function.function_invoke_arn
 }
 
 module "cloudwatch" {
-  source                = "./modules/cloudwatch"
-  region                = "us-east-1"
-  function_name         = module.lambda_function.function_name
-  log_retention_in_days = 7
-  environment           = "dev"
+  source = "./modules/cloudwatch"
+  region = "us-east-1"
+  # Pass the function name from your Lambda module or CloudFormation stack
+  function_name = module.lambda_function.function_name # If using Terraform Lambda module
+  # OR if using CloudFormation for Lambda:
+  # function_name = aws_cloudformation_stack.pdf_converter_lambda_cfn.outputs.FunctionName
+  log_retention_in_days = 7 # Set your desired log retention
+  environment           = "dev" # Or "prod", etc.
 }
 
+
+# --- Automation for local .env file update ---
 resource "null_resource" "update_local_env" {
   depends_on = [
     module.rds,
@@ -100,6 +118,8 @@ resource "null_resource" "update_local_env" {
   ]
 
   provisioner "local-exec" {
+    # Use a multi-line heredoc to write the environment variables directly.
+    # This avoids any path or permission issues with a separate script file.
     command = <<-EOT
       echo "Writing environment variables to ./pdf_converter_FastAPI_app/.env"
       cat << EOF > ./pdf_converter_FastAPI_app/.env

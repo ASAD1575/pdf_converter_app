@@ -126,8 +126,7 @@ pipeline {
                                 -var 's3_key_app=${APP_ZIP}' \
                                 -var 'source_code_hash_app=${fileHashApp}' \
                                 -var 's3_key_layer=${LAYER_ZIP}' \
-                                -var 'source_code_hash_layer=${fileHashLayer}' \
-                                -var 'api_gateway_url'=${apiGatewayUrl}
+                                -var 'source_code_hash_layer=${fileHashLayer}'
                             """
                         }
                     }

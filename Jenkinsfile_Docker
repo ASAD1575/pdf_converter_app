@@ -46,8 +46,12 @@ pipeline {
                 ls -l
 
                 # Build app zip
-                cp -r pdf_converter_FastAPI_app/*.py \
+                cp -r pdf_converter_FastAPI_app/main.py \
+                    pdf_converter_FastAPI_app/database.py \
+                    pdf_converter_FastAPI_app/models.py \
+                    pdf_converter_FastAPI_app/utils.py \
                     pdf_converter_FastAPI_app/templates \
+                    pdf_converter_FastAPI_app/static \
                     build/app/
                 
                 cd build/app && zip -r ../../$APP_ZIP . && cd ../..
@@ -94,6 +98,9 @@ pipeline {
                             def fileHashApp = sh(returnStdout: true, script: "sha256sum ${APP_ZIP} | awk '{print \$1}'").trim()
                             def fileHashLayer = sh(returnStdout: true, script: "sha256sum ${LAYER_ZIP} | awk '{print \$1}'").trim()
 
+                            echo "${fileHashApp}"
+                            echo "${fileHashLayer}"
+
                             // Copying the zip files to the S3_BUCKET
                             echo 'Copying the zip files to the AWS_S3_BUCKET...'
                             sh "aws s3 cp ${APP_ZIP} s3://${S3_BUCKET}/"
@@ -111,7 +118,6 @@ pipeline {
                             //     --key-schema AttributeName=LockID,KeyType=HASH \
                             //     --provisioned-throughput ReadCapacityUnits=5,WriteCapacityUnits=5
                             // """
-                            
                             // Initializing Terraform
                             echo 'Initializing Terraform...'
                             sh 'terraform init -upgrade'
@@ -120,7 +126,8 @@ pipeline {
                                 -var 's3_key_app=${APP_ZIP}' \
                                 -var 'source_code_hash_app=${fileHashApp}' \
                                 -var 's3_key_layer=${LAYER_ZIP}' \
-                                -var 'source_code_hash_layer=${fileHashLayer}'
+                                -var 'source_code_hash_layer=${fileHashLayer}' \
+                                -var 'api_gateway_url'=${apiGatewayUrl}
                             """
                         }
                     }

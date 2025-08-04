@@ -62,7 +62,7 @@ resource "aws_security_group" "rds_sg" {
     from_port       = 5432 # PostgreSQL default port
     to_port         = 5432
     protocol        = "tcp"
-    security_groups = [aws_security_group.app_sg.id] # Allow traffic only from the app_sg
+    security_groups = ["10.0.0.0/16"] # Allow traffic only from the app_sg
   }
   
   # Egress rule for the database (e.g., for outbound connections to S3 for backups, or other AWS services)

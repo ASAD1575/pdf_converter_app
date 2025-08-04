@@ -111,6 +111,7 @@ resource "aws_lambda_function" "pdf_converter_app" {
       DB_PASSWORD = var.db_password
       DB_PORT     = var.db_port
       S3_BUCKET_NAME = var.s3_bucket_name
+      FASTAPI_ROOT_PATH = "/prod"
       # Add any other environment variables your app needs
     }
   }

@@ -111,6 +111,7 @@ resource "aws_lambda_function" "pdf_converter_app" {
       DB_PASSWORD = var.db_password
       DB_PORT     = var.db_port
       S3_BUCKET_NAME = var.s3_bucket_name
+      API_GATEWAY_URL = var.api_gateway_url
       # Add any other environment variables your app needs
     }
   }

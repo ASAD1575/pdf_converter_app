@@ -9,19 +9,44 @@ app = FastAPI(root_path="/prod")
 templates = Jinja2Templates(directory="templates")
 
 # S3 bucket setup
-S3_BUCKET_NAME = os.getenv("S3_BUCKET_NAME")
+S3_BUCKET_NAME = os.getenv("pdflambdabucket1575")
 s3_client = boto3.client("s3")
+
+UPLOAD_DIR = "uploads"
+os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 # --- PDF conversion endpoint ---
 @app.post("/convert")
 async def convert_to_pdf(file: UploadFile = File(...)):
-    # (Unchanged conversion logic)
-    ...
+    file_id = str(uuid.uuid4())
+    input_path = os.path.join(UPLOAD_DIR, file_id + ".docx")
+    output_path = os.path.join(UPLOAD_DIR, file_id + ".pdf")
+
+    with open(input_path, "wb") as f:
+        f.write(await file.read())
+
+    # Ensure libreoffice is installed and accessible in your environment
+    try:
+        subprocess.run(["libreoffice", "--headless", "--convert-to", "pdf", input_path, "--outdir", UPLOAD_DIR], check=True)
+    except subprocess.CalledProcessError as e:
+        print(f"LibreOffice conversion failed: {e}")
+        return JSONResponse({"status": "failed", "message": "PDF conversion failed."}, status_code=500)
+    except FileNotFoundError:
+        print("LibreOffice command not found. Please ensure LibreOffice is installed and in your PATH.")
+        return JSONResponse({"status": "failed", "message": "Server error: PDF converter not found."}, status_code=500)
+
+    if os.path.exists(output_path):
+        return JSONResponse({"status": "completed", "file_id": file_id})
+    else:
+        return JSONResponse({"status": "failed", "message": "PDF output file not found after conversion."}, status_code=500)
+
 
 @app.get("/download/{file_id}")
 async def download_pdf(file_id: str):
-    # (Unchanged download logic)
-    ...
+    pdf_path = os.path.join(UPLOAD_DIR, file_id + ".pdf")
+    if os.path.exists(pdf_path):
+        return FileResponse(pdf_path, filename="converted.pdf")
+    return JSONResponse({"error": "File not found"}, status_code=404)
 
 # --- Registration ---
 @app.get("/register", response_class=HTMLResponse)

@@ -83,7 +83,7 @@ module "lambda_function" {
   # Ensures Terraform detects zip changes
   source_code_hash_app = var.source_code_hash_app
   source_code_hash_layer = var.source_code_hash_layer
-  
+
 }
 
 # Add the API Gateway module
@@ -134,7 +134,6 @@ resource "null_resource" "update_local_env" {
       DB_USER="${module.rds.db_username}"
       DB_PASSWORD="${module.rds.db_password}"
       DB_PORT="${module.rds.db_port}"
-      API_GATEWAY_URL="${module.api_gateway.api_gateway_url}"
       EOF
       echo "Successfully updated ./pdf_converter_FastAPI_app/.env"
     EOT

@@ -80,7 +80,7 @@ resource "aws_lambda_layer_version" "python_dependencies" {
 resource "aws_lambda_function" "pdf_converter_app" {
   function_name = var.function_name
   handler       = "main.handler"              # FAST API wrapped by Mangum
-  runtime       = "python3.12" 
+  runtime       = "python3.8" 
   role          = aws_iam_role.lambda_exec_role.arn
   timeout       = 300 
   memory_size   = 1024 

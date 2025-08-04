@@ -48,7 +48,6 @@ pipeline {
                 # Build app zip
                 cp -r pdf_converter_FastAPI_app/*.py \
                     pdf_converter_FastAPI_app/templates \
-                    pdf_converter_FastAPI_app/static \
                     build/app/
                 
                 cd build/app && zip -r ../../$APP_ZIP . && cd ../..

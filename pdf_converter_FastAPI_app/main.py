@@ -40,14 +40,14 @@ async def register_user(request: Request, username: str = Form(...), email: str 
     return templates.TemplateResponse("register.html", {"request": request, "root_path": root_path, "error": "Username or Email already exists"})
 
 # --- Login ---
-@app.get("/login", response_class=HTMLResponse)
+@app.get("/", response_class=HTMLResponse)
 async def login_form(request: Request):
     root_path = request.scope.get("root_path", "")
     message = request.query_params.get("message")
     error = request.query_params.get("error")
     return templates.TemplateResponse("login.html", {"request": request, "root_path": root_path, "message": message, "error": error})
 
-@app.post("/login", response_class=HTMLResponse)
+@app.post("/", response_class=HTMLResponse)
 async def login(request: Request, username: str = Form(...), password: str = Form(...)):
     root_path = request.scope.get("root_path", "")
     if verify_user(username, password):

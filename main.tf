@@ -117,7 +117,7 @@ module "cloudwatch" {
 resource "null_resource" "update_local_env" {
   depends_on = [
     module.rds,
-    # module.api_gateway,
+    module.api_gateway,
   ]
 
   provisioner "local-exec" {

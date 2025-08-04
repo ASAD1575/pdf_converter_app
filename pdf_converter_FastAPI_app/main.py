@@ -79,6 +79,6 @@ async def dashboard(request: Request, username: str = Query("Guest")):
     root_path = request.scope.get("root_path", "/prod")
     user = {"username": username}
     return templates.TemplateResponse("dashboard.html", {"request": request, "root_path": root_path, "user": user})
-    
+
 # Lambda entry point
 handler = Mangum(app)

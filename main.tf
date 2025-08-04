@@ -83,6 +83,7 @@ module "lambda_function" {
   # Ensures Terraform detects zip changes
   source_code_hash_app = var.source_code_hash_app
   source_code_hash_layer = var.source_code_hash_layer
+  api_gateway_url = var.api_gateway_url
   
 }
 
@@ -114,53 +115,10 @@ module "cloudwatch" {
 
 
 # --- Automation for local .env file update ---
-resource "null_resource" "update_lambda_env_with_api_url" {
-  depends_on = [
-    module.api_gateway, # Ensure API Gateway is created and its URL is known
-    module.lambda_function # Ensure Lambda function exists
-  ]
-
-  provisioner "local-exec" {
-    # The AWS CLI and 'jq' are needed for this command.
-    # We assume they are installed in the Jenkins Docker agent.
-    # For Alpine-based images (like hashicorp/terraform), use apk.
-    # For Debian-based images (like python:3.x-slim), use apt-get.
-    # We'll include both for robustness, but ensure your Jenkins agent has them.
-    command = <<-EOT
-      echo "Attempting to install jq and awscli..."
-      if command -v apk &> /dev/null; then
-        apk update && apk add jq python3 py3-pip && pip install awscli
-      elif command -v apt-get &> /dev/null; then
-        apt-get update && apt-get install -y jq python3 python3-pip && pip install awscli
-      else
-        echo "Neither apk nor apt-get found. Please ensure jq and awscli are installed."
-        exit 1
-      fi
-
-      # Get current environment variables from Lambda
-      CURRENT_VARS_JSON=$(aws lambda get-function-configuration --function-name "${module.lambda_function.function_name}" --query 'Environment.Variables' --output json --region "us-east-1")
-
-      # Add/update API_GATEWAY_URL using jq
-      UPDATED_VARS_JSON=$(echo "$CURRENT_VARS_JSON" | jq --arg api_url "${module.api_gateway.api_gateway_url}" '. + {API_GATEWAY_URL: $api_url}')
-
-      # Update Lambda function configuration
-      aws lambda update-function-configuration \
-        --function-name "${module.lambda_function.function_name}" \
-        --environment "Variables=$UPDATED_VARS_JSON" \
-        --region "us-east-1"
-      echo "Lambda function ${module.lambda_function.function_name} environment updated with API_GATEWAY_URL: ${module.api_gateway.api_gateway_url}"
-    EOT
-    interpreter = ["/bin/sh", "-c"] # Ensures the command is run in a shell
-  }
-}
-
-# --- Automation for local .env file update ---
 resource "null_resource" "update_local_env" {
   depends_on = [
     module.rds,
     module.api_gateway,
-    module.s3_bucket, # Explicitly depend on s3_bucket
-    null_resource.update_lambda_env_with_api_url # Ensure Lambda env is updated before writing to local .env
   ]
 
   provisioner "local-exec" {
@@ -177,7 +135,6 @@ resource "null_resource" "update_local_env" {
       DB_USER="${module.rds.db_username}"
       DB_PASSWORD="${module.rds.db_password}"
       DB_PORT="${module.rds.db_port}"
-      S3_BUCKET_NAME="${module.s3_bucket.bucket_id}"
       API_GATEWAY_URL="${module.api_gateway.api_gateway_url}"
       EOF
       echo "Successfully updated ./pdf_converter_FastAPI_app/.env"

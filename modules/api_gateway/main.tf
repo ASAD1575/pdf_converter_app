@@ -70,7 +70,7 @@ resource "aws_api_gateway_deployment" "main_deployment" {
       aws_api_gateway_method.root_method.id,
       aws_api_gateway_integration.root_lambda_integration.id,
       aws_api_gateway_method.proxy_method.id,
-      aws_api_gateway_integration.proxy_lambda_integration.id
+      aws_api_gateway_integration.proxy_lambda_integration.id,
       aws_api_gateway_rest_api.main_api.body, 
       aws_api_gateway_method.root_method.id,
       aws_api_gateway_integration.root_lambda_integration.id,

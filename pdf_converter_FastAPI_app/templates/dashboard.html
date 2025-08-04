@@ -430,7 +430,7 @@
             <h1 class="welcome-message">Welcome, {{ user.username }}</h1>
 
             <!-- Upload Form -->
-            <form id="uploadForm" action="{{ base_url }}/convert" method="post" enctype="multipart/form-data">
+            <form id="uploadForm" action="{{ root_path }}/convert" method="post" enctype="multipart/form-data">
                 <input type="file" name="file" accept=".docx" required>
                 <button id="convertBtn" type="submit" class="convert-button">Convert to PDF</button>
             </form>
@@ -492,7 +492,7 @@
                 progressDiv.style.display = "none"; // Hide progress bar
 
                 if (data.status === "completed") {
-                    downloadLink.href = `{{ base_url }}/download/${data.file_id}`;
+                    downloadLink.href = `{{ roo_path }}/download/${data.file_id}`;
                     downloadDiv.style.display = "block"; // Show download link
                 } else {
                     // Use a custom message box instead of alert()

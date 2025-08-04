@@ -71,7 +71,7 @@ async def reset_password_direct(request: Request, username_or_email: str = Form(
     if user and update_user_password(user["email"], new_password):
         return RedirectResponse(f"{root_path}/login?message=password_reset_success", status_code=303)
     else:
-        return templates.TemplateResponse("forgot_password.html", {"request": request, "base_url": base_url, "error": "No account found or reset failed."})
+        return templates.TemplateResponse("forgot_password.html", {"request": request, "root_path": root_path, "error": "No account found or reset failed."})
 
 # --- Root and Dashboard ---
 @app.get("/", response_class=HTMLResponse)

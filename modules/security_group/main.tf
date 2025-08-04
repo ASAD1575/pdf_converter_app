@@ -37,6 +37,13 @@ resource "aws_security_group" "app_sg" {
     protocol    = "tcp"
     cidr_blocks = ["0.0.0.0/0"] # IMPORTANT: Restrict this in production to your office/VPN IPs
   }
+  ingress {
+    description = "Allow SSH access from anywhere (consider restricting to specific IPs)"
+    from_port   = 5432
+    to_port     = 5432
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"] # IMPORTANT: Restrict this in production to your office/VPN IPs
+  }
 
   # Egress rule for all outbound traffic (common for applications)
   egress {
@@ -62,7 +69,7 @@ resource "aws_security_group" "rds_sg" {
     from_port       = 5432 # PostgreSQL default port
     to_port         = 5432
     protocol        = "tcp"
-    security_groups = ["10.0.0.0/16"] # Allow traffic only from the app_sg
+    security_groups = [aws_security_group.app_sg.id] # Allow traffic only from the app_sg
   }
   
   # Egress rule for the database (e.g., for outbound connections to S3 for backups, or other AWS services)

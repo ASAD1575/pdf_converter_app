@@ -1,166 +1,162 @@
-from fastapi import FastAPI, Request, Form, UploadFile, File, Query
-from fastapi.responses import HTMLResponse, RedirectResponse, FileResponse, JSONResponse
+from fastapi import FastAPI, Request, Form
+from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from mangum import Mangum
-from database import create_user, verify_user, get_user_by_email, get_user_by_username, update_user_password
-import os, subprocess, uuid, boto3, tempfile
+import os
+import logging # Import logging module
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 app = FastAPI()
 templates = Jinja2Templates(directory="templates")
 
-# S3 bucket setup
-S3_BUCKET_NAME = os.getenv("S3_BUCKET_NAME")
-s3_client = boto3.client("s3")
-
-# --- PDF conversion endpoint ---
-@app.post("/convert")
-async def convert_to_pdf(file: UploadFile = File(...)):
-    if not S3_BUCKET_NAME:
-        return JSONResponse({"status": "failed", "message": "S3 bucket name not configured."}, status_code=500)
-
-    file_id = str(uuid.uuid4())
-    original_filename = file.filename
-    docx_s3_key = f"uploads/{file_id}.docx"
-    pdf_s3_key = f"converted_pdfs/{file_id}.pdf"
-
-    with tempfile.NamedTemporaryFile(delete=False, suffix=".docx") as temp_docx_file:
-        content = await file.read()
-        temp_docx_file.write(content)
-        temp_docx_file_path = temp_docx_file.name
-
-    try:
-        s3_client.upload_file(temp_docx_file_path, S3_BUCKET_NAME, docx_s3_key)
-        print(f"Uploaded {original_filename} to s3://{S3_BUCKET_NAME}/{docx_s3_key}")
-    except Exception as e:
-        print(f"Error uploading DOCX to S3: {e}")
-        os.remove(temp_docx_file_path)
-        return JSONResponse({"status": "failed", "message": "Failed to upload DOCX to S3."}, status_code=500)
-
-    temp_pdf_file_path = os.path.join(tempfile.gettempdir(), f"{file_id}.pdf")
-
-    try:
-        subprocess.run(
-            ["libreoffice", "--headless", "--convert-to", "pdf", temp_docx_file_path, "--outdir", tempfile.gettempdir()],
-            check=True
-        )
-        print(f"Converted {temp_docx_file_path} to {temp_pdf_file_path}")
-    except subprocess.CalledProcessError as e:
-        print(f"LibreOffice conversion failed: {e}")
-        return JSONResponse({"status": "failed", "message": "PDF conversion failed."}, status_code=500)
-    except FileNotFoundError:
-        print("LibreOffice command not found. Please ensure LibreOffice is installed and in your PATH (via Lambda Layer).")
-        return JSONResponse({"status": "failed", "message": "Server error: PDF converter not found."}, status_code=500)
-    finally:
-        os.remove(temp_docx_file_path)
-
-    if os.path.exists(temp_pdf_file_path):
-        try:
-            s3_client.upload_file(temp_pdf_file_path, S3_BUCKET_NAME, pdf_s3_key)
-            print(f"Uploaded converted PDF to s3://{S3_BUCKET_NAME}/{pdf_s3_key}")
-            return JSONResponse({"status": "completed", "file_id": file_id})
-        except Exception as e:
-            print(f"Error uploading PDF to S3: {e}")
-            return JSONResponse({"status": "failed", "message": "Failed to upload converted PDF to S3."}, status_code=500)
-        finally:
-            os.remove(temp_pdf_file_path)
-    else:
-        return JSONResponse({"status": "failed", "message": "PDF output file not found after conversion."}, status_code=500)
-
-
-@app.get("/download/{file_id}")
-async def download_pdf(file_id: str):
-    if not S3_BUCKET_NAME:
-        return JSONResponse({"status": "failed", "message": "S3 bucket name not configured."}, status_code=500)
-
-    pdf_s3_key = f"converted_pdfs/{file_id}.pdf"
-
-    try:
-        # S3 presigned URLs are full URLs and do not need the API Gateway stage prefix.
-        presigned_url = s3_client.generate_presigned_url(
-            'get_object',
-            Params={'Bucket': S3_BUCKET_NAME, 'Key': pdf_s3_key},
-            ExpiresIn=300
-        )
-        return RedirectResponse(presigned_url, status_code=303)
-    except s3_client.exceptions.ClientError as e:
-        if e.response['Error']['Code'] == 'NoSuchKey':
-            return JSONResponse({"error": "File not found"}, status_code=404)
-        else:
-            print(f"Error generating presigned URL: {e}")
-            return JSONResponse({"error": "Could not generate download link."}, status_code=500)
-    except Exception as e:
-        print(f"An unexpected error occurred: {e}")
-        return JSONResponse({"error": "An unexpected server error occurred."}, status_code=500)
-
-
-# --- Registration ---
-@app.get("/register", response_class=HTMLResponse)
-async def register_form(request: Request):
-    # Get the root_path (e.g., /prod) from the request scope
-    root_path = request.scope.get("root_path", "")
-    return templates.TemplateResponse(
-        "register.html",
-        {"request": request, "root_path": root_path} # Pass root_path to template
-    )
-
-@app.post("/register")
-async def register_user(request: Request, username: str = Form(...), email: str = Form(...), password: str = Form(...)):
-    root_path = request.scope.get("root_path", "")
-    if create_user(username, email, password):
-        # Prepend root_path to the redirect URL
-        return RedirectResponse(f"{root_path}/login?message=registration_success", status_code=303)
-    # Pass root_path to template on error
-    return templates.TemplateResponse("register.html", {"request": request, "root_path": root_path, "error": "Username or Email already exists"})
-
-# --- Login (Handles both root "/" and "/login" for flexibility) ---
-@app.get("/", response_class=HTMLResponse) # This will handle the root path (e.g., /prod)
-@app.get("/login", response_class=HTMLResponse) # This will also handle /login explicitly (e.g., /prod/login)
+# --- Login ---
+@app.get("/", response_class=HTMLResponse)
+@app.get("/login", response_class=HTMLResponse)
 async def login_form(request: Request):
+    # This line is crucial for debugging
     root_path = request.scope.get("root_path", "")
+    logger.info(f"DEBUG: root_path in login_form: '{root_path}'") 
+    
     message = request.query_params.get("message")
     error = request.query_params.get("error")
-    # Pass root_path to template
     return templates.TemplateResponse("login.html", {"request": request, "root_path": root_path, "message": message, "error": error})
 
 @app.post("/login", response_class=HTMLResponse)
 async def login(request: Request, username: str = Form(...), password: str = Form(...)):
+    # This line is crucial for debugging
     root_path = request.scope.get("root_path", "")
+    logger.info(f"DEBUG: root_path in login POST: '{root_path}'") 
+
     if verify_user(username, password):
-        # Prepend root_path to the redirect URL
+        # Ensure your verify_user function is imported or defined
+        # For now, let's assume it always returns True for testing the redirect
+        # In a real app: if database.verify_user(username, password):
         return RedirectResponse(f"{root_path}/dashboard?username={username}", status_code=303)
-    # Pass root_path to template on error
     return templates.TemplateResponse("login.html", {"request": request, "root_path": root_path, "error": "Invalid username or password"})
 
-# --- Forgot Password ---
-@app.get("/forgot_password", response_class=HTMLResponse)
-async def forgot_password_page(request: Request):
+# --- Placeholder for database functions (replace with your actual database.py imports) ---
+# You'll need to ensure your database functions are available here.
+# For example:
+# from .database import verify_user, create_user, get_user_by_email, update_user_password, save_password_reset_token, verify_password_reset_token, invalidate_token
+# For demonstration purposes, a dummy function:
+def verify_user(username, password):
+    # This is a dummy function. Replace with actual database verification.
+    return True 
+
+# --- Register ---
+@app.get("/register", response_class=HTMLResponse)
+async def register_form(request: Request):
     root_path = request.scope.get("root_path", "")
+    logger.info(f"DEBUG: root_path in register_form: '{root_path}'")
     error = request.query_params.get("error")
-    # Pass root_path to template
-    return templates.TemplateResponse("forgot_password.html", {"request": request, "root_path": root_path, "error": error})
+    return templates.TemplateResponse("register.html", {"request": request, "root_path": root_path, "error": error})
 
-@app.post("/reset_password_direct")
-async def reset_password_direct(request: Request, username_or_email: str = Form(...), new_password: str = Form(...), confirm_new_password: str = Form(...)):
+@app.post("/register", response_class=HTMLResponse)
+async def register(request: Request, username: str = Form(...), email: str = Form(...), password: str = Form(...), confirm_password: str = Form(...)):
     root_path = request.scope.get("root_path", "")
-    if new_password != confirm_new_password:
-        # Pass root_path to template on error
-        return templates.TemplateResponse("forgot_password.html", {"request": request, "root_path": root_path, "error": "Passwords do not match."})
+    logger.info(f"DEBUG: root_path in register POST: '{root_path}'")
 
-    user = get_user_by_email(username_or_email) or get_user_by_username(username_or_email)
-    if user and update_user_password(user["email"], new_password):
-        # Prepend root_path to the redirect URL
-        return RedirectResponse(f"{root_path}/login?message=password_reset_success", status_code=303)
+    if password != confirm_password:
+        return templates.TemplateResponse("register.html", {"request": request, "root_path": root_path, "error": "Passwords do not match."})
+    
+    # Placeholder for user creation logic (replace with your actual database.create_user)
+    # For now, always return success for testing the redirect
+    # In a real app: if database.create_user(username, email, password):
+    if True: # Simulating successful user creation
+        return RedirectResponse(f"{root_path}/login?message=Registration successful! Please log in.", status_code=303)
     else:
-        # Pass root_path to template on error
-        return templates.TemplateResponse("forgot_password.html", {"request": request, "root_path": root_path, "error": "No account found or reset failed."})
+        return templates.TemplateResponse("register.html", {"request": request, "root_path": root_path, "error": "Username or email already exists."})
 
-# --- Dashboard ---
-@app.get("/dashboard", response_class=HTMLResponse)
-async def dashboard(request: Request, username: str = Query("Guest")):
+# --- Forgot Password ---
+@app.get("/forgot-password", response_class=HTMLResponse)
+async def forgot_password_form(request: Request):
     root_path = request.scope.get("root_path", "")
-    user = {"username": username}
-    # Pass root_path to template
-    return templates.TemplateResponse("dashboard.html", {"request": request, "root_path": root_path, "user": user})
+    logger.info(f"DEBUG: root_path in forgot_password_form: '{root_path}'")
+    message = request.query_params.get("message")
+    error = request.query_params.get("error")
+    return templates.TemplateResponse("forgot_password.html", {"request": request, "root_path": root_path, "message": message, "error": error})
 
-# Lambda entry point
+@app.post("/forgot-password", response_class=HTMLResponse)
+async def forgot_password_request(request: Request, email: str = Form(...)):
+    root_path = request.scope.get("root_path", "")
+    logger.info(f"DEBUG: root_path in forgot_password_request POST: '{root_path}'")
+
+    # In a real application, you would:
+    # 1. Check if the email exists in your database.
+    # 2. Generate a unique token.
+    # 3. Save the token with an expiration time in your database.
+    # 4. Send an email to the user with a link containing the token.
+    
+    # For demonstration:
+    # if database.get_user_by_email(email):
+    #     token = "dummy_reset_token" # Replace with actual token generation
+    #     expires_at = datetime.datetime.now() + datetime.timedelta(hours=1)
+    #     database.save_password_reset_token(email, token, expires_at)
+    #     reset_link = f"{request.url.scheme}://{request.url.netloc}{root_path}/reset-password?token={token}"
+    #     print(f"Password reset link: {reset_link}") # In production, send via email service
+    
+    return templates.TemplateResponse("forgot_password.html", {
+        "request": request,
+        "root_path": root_path,
+        "message": "If an account with that email exists, a password reset link has been sent."
+    })
+
+# --- Reset Password ---
+@app.get("/reset-password", response_class=HTMLResponse)
+async def reset_password_form(request: Request, token: str):
+    root_path = request.scope.get("root_path", "")
+    logger.info(f"DEBUG: root_path in reset_password_form: '{root_path}'")
+
+    # In a real application, you would verify the token's validity and expiration
+    # if database.verify_password_reset_token(token):
+    #     return templates.TemplateResponse("reset_password.html", {"request": request, "root_path": root_path, "token": token})
+    # else:
+    #     return templates.TemplateResponse("message.html", {"request": request, "root_path": root_path, "message": "Invalid or expired password reset token."})
+    
+    # For demonstration:
+    if token == "dummy_reset_token": # Simulate a valid token
+        return templates.TemplateResponse("reset_password.html", {"request": request, "root_path": root_path, "token": token})
+    else:
+        return templates.TemplateResponse("message.html", {"request": request, "root_path": root_path, "message": "Invalid or expired password reset token."})
+
+
+@app.post("/reset-password", response_class=HTMLResponse)
+async def reset_password_submit(request: Request, token: str = Form(...), new_password: str = Form(...), confirm_password: str = Form(...)):
+    root_path = request.scope.get("root_path", "")
+    logger.info(f"DEBUG: root_path in reset_password_submit POST: '{root_path}'")
+
+    if new_password != confirm_password:
+        return templates.TemplateResponse("reset_password.html", {"request": request, "root_path": root_path, "token": token, "error": "Passwords do not match."})
+
+    # In a real application, you would:
+    # 1. Verify the token again.
+    # 2. Get the user's email associated with the token.
+    # 3. Update the user's password in the database.
+    # 4. Invalidate the token.
+    
+    # For demonstration:
+    # email = database.verify_password_reset_token(token)
+    # if email:
+    #     database.update_user_password(email, new_password)
+    #     database.invalidate_token(token)
+    #     return RedirectResponse(f"{root_path}/login?message=Password successfully reset. Please log in.", status_code=303)
+    # else:
+    #     return templates.TemplateResponse("message.html", {"request": request, "root_path": root_path, "message": "Invalid or expired password reset token."})
+
+    if token == "dummy_reset_token": # Simulate successful reset
+        return RedirectResponse(f"{root_path}/login?message=Password successfully reset. Please log in.", status_code=303)
+    else:
+        return templates.TemplateResponse("message.html", {"request": request, "root_path": root_path, "message": "Invalid or expired password reset token."})
+
+# --- Dashboard (Example protected route) ---
+@app.get("/dashboard", response_class=HTMLResponse)
+async def dashboard(request: Request, username: str = "Guest"):
+    root_path = request.scope.get("root_path", "")
+    logger.info(f"DEBUG: root_path in dashboard: '{root_path}'")
+    return templates.TemplateResponse("dashboard.html", {"request": request, "root_path": root_path, "username": username})
+
+# Handler for AWS Lambda
 handler = Mangum(app)

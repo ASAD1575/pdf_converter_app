@@ -390,7 +390,7 @@
             </div>
 
             <!-- Login Form -->
-            <form action="/prod/login" method="post">
+            <form action="{{ bas_url }}/login" method="post">
                 <!-- Username Input -->
                 <div class="input-group">
                     <!-- Font Awesome icon for user -->
@@ -415,11 +415,11 @@
                     <button type="submit" class="login-button">Login</button>
 
                     <!-- Forgot Password Link -->
-                    <a href="/forgot_password" class="forgot-password">Forget Password?</a>
+                    <a href="{{ base_url }}/forgot_password" class="forgot-password">Forget Password?</a>
                 </div>
 
                 <!-- Create Account Button -->
-                <button type="button" class="create-account-button" onclick="location.href='/register'">Create an account</button>
+                <button type="button" class="create-account-button" onclick="location.href='{{ base_url }}/register'">Create an account</button>
             </form>
         </div>
 

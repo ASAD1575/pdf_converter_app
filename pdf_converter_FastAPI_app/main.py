@@ -16,7 +16,7 @@ app = FastAPI()
 templates = Jinja2Templates(directory="templates")
 
 # For local dev only; in production use S3/CloudFront for static files
-app.mount("/static", StaticFiles(directory="static"), name="static")
+# app.mount("/static", StaticFiles(directory="static"), name="static")
 
 # Get S3 bucket name from environment variables (set in Terraform)
 S3_BUCKET_NAME = os.getenv("S3_BUCKET_NAME")

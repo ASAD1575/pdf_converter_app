@@ -107,7 +107,8 @@ async def download_pdf(file_id: str):
 # --- Registration ---
 @app.get("/register", response_class=HTMLResponse)
 async def register_form(request: Request):
-    return templates.TemplateResponse("register.html", {"request": request})
+    base_url = str(request.base_url).rstrip("/")
+    return templates.TemplateResponse("register.html", {"request": request, "base_url": base_url})
 
 @app.post("/register")
 async def register_user(request: Request, username: str = Form(...), email: str = Form(...), password: str = Form(...)):

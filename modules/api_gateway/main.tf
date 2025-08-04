@@ -70,16 +70,7 @@ resource "aws_api_gateway_deployment" "main_deployment" {
       aws_api_gateway_method.root_method.id,
       aws_api_gateway_integration.root_lambda_integration.id,
       aws_api_gateway_method.proxy_method.id,
-      aws_api_gateway_integration.proxy_lambda_integration.id,
-      aws_api_gateway_rest_api.main_api.body, 
-      aws_api_gateway_method.root_method.id,
-      aws_api_gateway_integration.root_lambda_integration.id,
-      aws_api_gateway_method.proxy_method.id,
-      aws_api_gateway_integration.proxy_lambda_integration.id,
-      aws_api_gateway_method.root_options.id,
-      aws_api_gateway_integration.root_options_integration.id,
-      aws_api_gateway_method.proxy_options.id,
-      aws_api_gateway_integration.proxy_options_integration.id
+      aws_api_gateway_integration.proxy_lambda_integration.id
     ]))
   }
 
@@ -93,14 +84,6 @@ resource "aws_api_gateway_deployment" "main_deployment" {
     aws_api_gateway_integration.root_lambda_integration,
     aws_api_gateway_method.proxy_method,
     aws_api_gateway_integration.proxy_lambda_integration,
-    aws_api_gateway_method.root_method,
-    aws_api_gateway_integration.root_lambda_integration,
-    aws_api_gateway_method.proxy_method,
-    aws_api_gateway_integration.proxy_lambda_integration,
-    aws_api_gateway_method.root_options,
-    aws_api_gateway_integration.root_options_integration,
-    aws_api_gateway_method.proxy_options,
-    aws_api_gateway_integration.proxy_options_integration,
   ]
 }
 
@@ -126,113 +109,5 @@ resource "aws_lambda_permission" "apigw_lambda_permission" {
   # The /*/* part is a wildcard for any method on any path
   # This covers both the root method and the proxy method
   source_arn = "arn:aws:execute-api:${var.region}:${data.aws_caller_identity.current.account_id}:${aws_api_gateway_rest_api.main_api.id}/*/*"
+
 }
-
-# --- Existing code remains unchanged above ---
-
-# 10. Enable CORS for ROOT path
-resource "aws_api_gateway_method" "root_options" {
-  rest_api_id   = aws_api_gateway_rest_api.main_api.id
-  resource_id   = aws_api_gateway_rest_api.main_api.root_resource_id
-  http_method   = "OPTIONS"
-  authorization = "NONE"
-}
-
-resource "aws_api_gateway_integration" "root_options_integration" {
-  rest_api_id = aws_api_gateway_rest_api.main_api.id
-  resource_id = aws_api_gateway_rest_api.main_api.root_resource_id
-  http_method = aws_api_gateway_method.root_options.http_method
-  type        = "MOCK"
-
-  request_templates = {
-    "application/json" = "{\"statusCode\": 200}"
-  }
-}
-
-resource "aws_api_gateway_method_response" "root_options_response" {
-  rest_api_id = aws_api_gateway_rest_api.main_api.id
-  resource_id = aws_api_gateway_rest_api.main_api.root_resource_id
-  http_method = aws_api_gateway_method.root_options.http_method
-  status_code = "200"
-
-  response_models = {
-    "application/json" = "Empty"
-  }
-
-  response_parameters = {
-    "method.response.header.Access-Control-Allow-Headers" = true
-    "method.response.header.Access-Control-Allow-Methods" = true
-    "method.response.header.Access-Control-Allow-Origin"  = true
-  }
-}
-
-resource "aws_api_gateway_integration_response" "root_options_integration_response" {
-  rest_api_id = aws_api_gateway_rest_api.main_api.id
-  resource_id = aws_api_gateway_rest_api.main_api.root_resource_id
-  http_method = aws_api_gateway_method.root_options.http_method
-  status_code = aws_api_gateway_method_response.root_options_response.status_code
-
-  response_parameters = {
-    "method.response.header.Access-Control-Allow-Headers" = "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
-    "method.response.header.Access-Control-Allow-Methods" = "'GET,POST,PUT,DELETE,OPTIONS'"
-    "method.response.header.Access-Control-Allow-Origin"  = "'*'"
-  }
-
-  response_templates = {
-    "application/json" = ""
-  }
-}
-
-# 11. Enable CORS for {proxy+} path
-resource "aws_api_gateway_method" "proxy_options" {
-  rest_api_id   = aws_api_gateway_rest_api.main_api.id
-  resource_id   = aws_api_gateway_resource.proxy_resource.id
-  http_method   = "OPTIONS"
-  authorization = "NONE"
-}
-
-resource "aws_api_gateway_integration" "proxy_options_integration" {
-  rest_api_id = aws_api_gateway_rest_api.main_api.id
-  resource_id = aws_api_gateway_resource.proxy_resource.id
-  http_method = aws_api_gateway_method.proxy_options.http_method
-  type        = "MOCK"
-
-  request_templates = {
-    "application/json" = "{\"statusCode\": 200}"
-  }
-}
-
-resource "aws_api_gateway_method_response" "proxy_options_response" {
-  rest_api_id = aws_api_gateway_rest_api.main_api.id
-  resource_id = aws_api_gateway_resource.proxy_resource.id
-  http_method = aws_api_gateway_method.proxy_options.http_method
-  status_code = "200"
-
-  response_models = {
-    "application/json" = "Empty"
-  }
-
-  response_parameters = {
-    "method.response.header.Access-Control-Allow-Headers" = true
-    "method.response.header.Access-Control-Allow-Methods" = true
-    "method.response.header.Access-Control-Allow-Origin"  = true
-  }
-}
-
-resource "aws_api_gateway_integration_response" "proxy_options_integration_response" {
-  rest_api_id = aws_api_gateway_rest_api.main_api.id
-  resource_id = aws_api_gateway_resource.proxy_resource.id
-  http_method = aws_api_gateway_method.proxy_options.http_method
-  status_code = aws_api_gateway_method_response.proxy_options_response.status_code
-
-  response_parameters = {
-    "method.response.header.Access-Control-Allow-Headers" = "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
-    "method.response.header.Access-Control-Allow-Methods" = "'GET,POST,PUT,DELETE,OPTIONS'"
-    "method.response.header.Access-Control-Allow-Origin"  = "'*'"
-  }
-
-  response_templates = {
-    "application/json" = ""
-  }
-}
-

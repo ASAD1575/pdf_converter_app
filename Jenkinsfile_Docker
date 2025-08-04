@@ -46,10 +46,7 @@ pipeline {
                 ls -l
 
                 # Build app zip
-                cp -r pdf_converter_FastAPI_app/main.py \
-                    pdf_converter_FastAPI_app/database.py \
-                    pdf_converter_FastAPI_app/models.py \
-                    pdf_converter_FastAPI_app/utils.py \
+                cp -r pdf_converter_FastAPI_app/*.py \
                     pdf_converter_FastAPI_app/templates \
                     pdf_converter_FastAPI_app/static \
                     build/app/

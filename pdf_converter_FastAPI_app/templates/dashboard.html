@@ -492,7 +492,7 @@
                 progressDiv.style.display = "none"; // Hide progress bar
 
                 if (data.status === "completed") {
-                    downloadLink.href = `{{ roo_path }}/download/${data.file_id}`;
+                    downloadLink.href = `{{ root_path }}/download/${data.file_id}`;
                     downloadDiv.style.display = "block"; // Show download link
                 } else {
                     // Use a custom message box instead of alert()

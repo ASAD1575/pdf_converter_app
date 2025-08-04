@@ -77,7 +77,7 @@ async def reset_password_direct(request: Request, username_or_email: str = Form(
 @app.get("/dashboard", response_class=HTMLResponse)
 async def root(request: Request):
     root_path = request.scope.get("root_path", "/prod")
-    return templates.TemplateResponse("login.html", {"request": request, "root_path": root_path})
+    return templates.TemplateResponse("dasboard.html", {"request": request, "root_path": root_path})
 
 @app.get("/dashboard", response_class=HTMLResponse)
 async def dashboard(request: Request, username: str = Query("Guest")):

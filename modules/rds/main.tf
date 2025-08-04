@@ -23,7 +23,7 @@ resource "aws_db_instance" "pdf_rds_instance" {
   skip_final_snapshot     = true
   db_subnet_group_name    = aws_db_subnet_group.db_subnet_group.name
   vpc_security_group_ids  = [ var.security_group ]
-  publicly_accessible     = true
+  publicly_accessible     = false
   multi_az                = false
   storage_encrypted       = false
   tags = {

@@ -26,30 +26,33 @@ async def download_pdf(file_id: str):
 # --- Registration ---
 @app.get("/register", response_class=HTMLResponse)
 async def register_form(request: Request):
-    base_url = str(request.base_url).rstrip("/")
-    return templates.TemplateResponse("register.html", {"request": request, "base_url": base_url})
+    root_path = request.scope.get("root_path", "")  # Handles /prod in API Gateway
+    return templates.TemplateResponse(
+        "register.html",
+        {"request": request, "root_path": root_path}
+    )
 
 @app.post("/register")
 async def register_user(request: Request, username: str = Form(...), email: str = Form(...), password: str = Form(...)):
-    base_url = str(request.base_url).rstrip("/")
+    root_path = request.scope.get("root_path", "")
     if create_user(username, email, password):
-        return RedirectResponse(f"{base_url}/login?message=registration_success", status_code=303)
-    return templates.TemplateResponse("register.html", {"request": request, "base_url": base_url, "error": "Username or Email already exists"})
+        return RedirectResponse(f"{root_path}/login?message=registration_success", status_code=303)
+    return templates.TemplateResponse("register.html", {"request": request, "root_path": root_path, "error": "Username or Email already exists"})
 
 # --- Login ---
 @app.get("/login", response_class=HTMLResponse)
 async def login_form(request: Request):
-    base_url = str(request.base_url).rstrip("/")
+    root_path = request.scope.get("root_path", "")
     message = request.query_params.get("message")
     error = request.query_params.get("error")
-    return templates.TemplateResponse("login.html", {"request": request, "base_url": base_url, "message": message, "error": error})
+    return templates.TemplateResponse("login.html", {"request": request, "root_path": root_path, "message": message, "error": error})
 
 @app.post("/login", response_class=HTMLResponse)
 async def login(request: Request, username: str = Form(...), password: str = Form(...)):
-    base_url = str(request.base_url).rstrip("/")
+    root_path = request.scope.get("root_path", "")
     if verify_user(username, password):
-        return RedirectResponse(f"{base_url}/dashboard?username={username}", status_code=303)
-    return templates.TemplateResponse("login.html", {"request": request, "base_url": base_url, "error": "Invalid username or password"})
+        return RedirectResponse(f"{root_path}/dashboard?username={username}", status_code=303)
+    return templates.TemplateResponse("login.html", {"request": request, "root_path": root_path, "error": "Invalid username or password"})
 
 # --- Forgot Password ---
 @app.get("/forgot_password", response_class=HTMLResponse)

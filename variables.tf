@@ -19,3 +19,6 @@ variable "s3_key_layer" {
   type = string
 }
 
+variable "api_gateway_url" {
+  type = string
+}

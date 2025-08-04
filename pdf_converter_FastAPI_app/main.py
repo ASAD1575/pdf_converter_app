@@ -73,8 +73,8 @@ async def reset_password_direct(request: Request, username_or_email: str = Form(
     else:
         return templates.TemplateResponse("forgot_password.html", {"request": request, "root_path": root_path, "error": "No account found or reset failed."})
 
-# --- Root and Dashboard ---
-@app.get("/", response_class=HTMLResponse)
+# ---Dashboard ---
+@app.get("/dashboard", response_class=HTMLResponse)
 async def root(request: Request):
     root_path = request.scope.get("root_path", "/prod")
     return templates.TemplateResponse("login.html", {"request": request, "root_path": root_path})

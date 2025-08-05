@@ -122,7 +122,7 @@ def get_current_root_path(request: Request) -> str:
 async def register_user(request: Request, username: str = Form(...), email: str = Form(...), password: str = Form(...)):
     root_path = request.scope.get("root_path", "/prod")  # Default to /prod for API Gateway
     if create_user(username, email, password):
-        return RedirectResponse(f"{root_path}/?message=registration_success", status_code=303)
+        return RedirectResponse(f"{root_path}/register?message=registration_success", status_code=303)
     return templates.TemplateResponse("register.html", {"request": request, "root_path": root_path, "error": "Username or Email already exists"})
 
 # --- Login ---
@@ -132,6 +132,13 @@ async def login_form(request: Request):
     message = request.query_params.get("message")
     error = request.query_params.get("error")
     return templates.TemplateResponse("login.html", {"request": request, "root_path": root_path, "message": message, "error": error})
+
+# --- Register ---
+@app.get("/register", response_class=HTMLResponse)
+async def register_form(request: Request):
+    root_path = request.scope.get("root_path", "/prod")  # Default to /prod for API Gateway
+    error = request.query_params.get("error")
+    return templates.TemplateResponse("register.html", {"request": request, "root_path": root_path, "error": error})
 
 @app.post("/", response_class=HTMLResponse)
 async def login(request: Request, username: str = Form(...), password: str = Form(...)):

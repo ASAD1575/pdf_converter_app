@@ -19,14 +19,6 @@ variable "app_security_group_id" {
   type        = string
 }
 
-variable "libreoffice_layer_arn" {
-  description = "The ARN of the LibreOffice Lambda Layer for your region and runtime."
-  type        = string
-  # Example: "arn:aws:lambda:eu-north-1:764866452813:layer:libreoffice-brotli:X"
-  # You need to find the correct ARN for your region and the latest version.
-  # This layer is crucial for the 'libreoffice' command to work within Lambda.
-}
-
 # Database connection environment variables
 variable "db_host" {
   description = "The hostname/endpoint of the RDS database."
@@ -75,6 +67,15 @@ variable "s3_key_app" {
 }
 
 variable "s3_key_layer" {
+  type = string
+}
+
+variable "s3_key_layer_libreoffice" {
+  type = string
+}
+
+
+variable "source_code_hash_layer_libreoffice" {
   type = string
 }
 

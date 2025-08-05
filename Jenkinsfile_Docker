@@ -121,6 +121,7 @@ pipeline {
                             // Initializing Terraform
                             echo 'Initializing Terraform...'
                             sh 'terraform init -upgrade'
+                            sh 'terraform plan -auto-approve'
                             sh """
                                 terraform apply -auto-approve \
                                 -var 's3_key_app=${APP_ZIP}' \

@@ -51,7 +51,6 @@ pipeline {
                     pdf_converter_FastAPI_app/models.py \
                     pdf_converter_FastAPI_app/utils.py \
                     pdf_converter_FastAPI_app/templates \
-                    pdf_converter_FastAPI_app/static \
                     build/app/
                 
                 cd build/app && zip -r ../../$APP_ZIP . && cd ../..
@@ -120,8 +119,8 @@ pipeline {
                             // """
                             // Initializing Terraform
                             echo 'Initializing Terraform...'
-                            sh 'terraform init -migrate-state'
-                            sh 'terraform init -reconfigure'
+                            // sh 'terraform init -migrate-state'
+                            // sh 'terraform init -reconfigure'
                             sh 'terraform init -upgrade'
                             sh """
                                 terraform apply -auto-approve \

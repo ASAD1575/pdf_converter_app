@@ -33,7 +33,7 @@ pipeline {
         stage('Build Lambda Packages') {
             agent {
                 docker {
-                    image 'public.aws/lambda/python:3.12'
+                    image 'public.ecr.aws/lambda/python:3.12'
                     args '--user 0 --entrypoint=""'
                 }
             }

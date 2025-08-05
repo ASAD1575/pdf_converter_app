@@ -23,8 +23,6 @@ resource "aws_s3_bucket_public_access_block" "public_access" {
   restrict_public_buckets = false
 }
 
-<<<<<<< HEAD
-=======
 # Create DynamoDB Table for State Locking
 resource "aws_dynamodb_table" "terraform_state_lock" {
   name         = "terraform-state-lock-table"
@@ -43,4 +41,3 @@ resource "aws_dynamodb_table" "terraform_state_lock" {
   }
   
 }
->>>>>>> 21634b8b717c8262f0a95addd30499b33acfdac0

@@ -58,12 +58,12 @@ pipeline {
                     pdf_converter_FastAPI_app/static \
                     build/app/
                 
-                cd build/app && zip -r ../../$APP_ZIP . && cd ../..
+                cd build/app && gzip -r ../../$APP_ZIP . && cd ../..
 
                 echo "--- Building Python Dependencies Layer ZIP ---"
                 # Install Python dependencies into the layer directory
                 pip install -r pdf_converter_FastAPI_app/requirements.txt -t build/python_dependencies/python/
-                cd build/python_dependencies && zip -r ../../$PYTHON_LAYER_ZIP . && cd ../..
+                cd build/python_dependencies && gzip -r ../../$PYTHON_LAYER_ZIP . && cd ../..
 
                 echo "--- Building LibreOffice Layer ZIP ---"
                 # Download a pre-compiled, stripped-down LibreOffice build for Lambda.
@@ -83,7 +83,7 @@ pipeline {
                 rm -f /tmp/$LIBREOFFICE_ZIP_FILE
 
                 # Zip the LibreOffice layer
-                cd build/libreoffice_layer && zip -r ../../$LIBREOFFICE_LAYER_ZIP . && cd ../..
+                cd build/libreoffice_layer && gzip -r ../../$LIBREOFFICE_LAYER_ZIP . && cd ../..
 
                 echo "--- Changing Ownership of ZIP files ---"
                 chown ${hostUserId}:${hostGroupId} $APP_ZIP

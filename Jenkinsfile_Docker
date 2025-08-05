@@ -61,7 +61,7 @@ pipeline {
 
                 # Build dependencies layer zip
                 echo "--- Building Python Dependencies Layer ZIP ---"
-                
+                sh 'ls -l'
                 pip install -r pdf_converter_FastAPI_app/requirements.txt -t build/dependencies/python/
                 cd build/dependencies && zip -r ../../$PYTHON_LAYER_ZIP . && cd ../..
 

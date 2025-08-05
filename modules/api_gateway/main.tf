@@ -108,5 +108,6 @@ resource "aws_lambda_permission" "apigw_lambda_permission" {
 
   # The /*/* part is a wildcard for any method on any path
   # This covers both the root method and the proxy method
-  source_arn = "arn:aws:execute-api:${var.region}:${data.aws_caller_identity.current.account_id}:${aws_api_gateway_rest_api.main_api.id}/${aws_api_gateway_stage.prod_stage.stage_name}/*"
+  source_arn = "arn:aws:execute-api:${var.region}:${data.aws_caller_identity.current.account_id}:${aws_api_gateway_rest_api.main_api.id}/*/*"
+
 }

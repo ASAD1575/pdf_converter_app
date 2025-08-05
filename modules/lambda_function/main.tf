@@ -64,40 +64,43 @@ resource "aws_iam_role_policy" "lambda_s3_access" {
   })
 }
 
-# 2. Package the Python application code into a ZIP file
-# This data source creates a .zip file from your application's source directory.
-# Ensure your main.py, database.py, models.py, utils.py, requirements.txt,
-# and any other necessary Python files are in the 'src' directory (or adjust path).
-data "archive_file" "lambda_zip" {
-  type        = "zip"
-  source_dir  = var.source_code_path # Path to your application's Python files
-  output_path = "${path.module}/app_package.zip"
+# 2. Lambda Layer for Dependencies (from S3)
+# ------------------------------
+resource "aws_lambda_layer_version" "python_dependencies" {
+  layer_name          = "${var.function_name}-dependencies"
+  s3_bucket           = var.s3_bucket_name
+  s3_key              = var.s3_key_layer
+  compatible_runtimes = ["python3.9"]
+
+  # Helps Terraform detect updates
+  source_code_hash = var.source_code_hash_layer
 }
 
 # 3. AWS Lambda Function
 resource "aws_lambda_function" "pdf_converter_app" {
   function_name = var.function_name
-  handler       = "main.app" # Assuming your FastAPI app instance is named 'app' in main.py
-  runtime       = "python3.10" # Must match the Python version in your Dockerfile
+  handler       = "main.handler"              # FAST API wrapped by Mangum
+  runtime       = "python3.9" 
   role          = aws_iam_role.lambda_exec_role.arn
-  timeout       = 300 # Increase timeout for PDF conversion (max 900 seconds)
-  memory_size   = 1024 # Increase memory for LibreOffice (consider 512-2048 MB)
+  timeout       = 300 
+  memory_size   = 1024 
 
-  # Code deployment: reference the zipped package
-  filename         = data.archive_file.lambda_zip.output_path
-  source_code_hash = data.archive_file.lambda_zip.output_base64sha256
-
+  # Code from S3
+  s3_bucket         = var.s3_bucket_name
+  s3_key            = var.s3_key_app
+  source_code_hash  = var.source_code_hash_app
+  
   # VPC Configuration (to access RDS)
   vpc_config {
-    subnet_ids         = var.private_subnet_ids # Lambda should be in private subnets
-    security_group_ids = [var.app_security_group_id] # Attach your application's SG
+    subnet_ids         = var.private_subnet_ids           # Lambda should be in private subnets
+    security_group_ids = [var.app_security_group_id]      # Attach your application's SG
   }
 
-  # Lambda Layers (for LibreOffice)
-  # IMPORTANT: You need a LibreOffice Lambda Layer ARN for your specific region and runtime.
-  # You can find pre-built layers (e.g., from Serverless Framework's serverless-libreoffice plugin)
-  # or build your own. Example ARN structure: arn:aws:lambda:REGION:ACCOUNT_ID:layer:libreoffice-brotli:VERSION
-  layers = [var.libreoffice_layer_arn]
+  # Layers: Python dependencies + LibreOffice
+  layers = [
+    aws_lambda_layer_version.python_dependencies.arn,
+    var.libreoffice_layer_arn
+  ]
 
   # Environment variables for the application (e.g., database connection)
   environment {
@@ -108,6 +111,7 @@ resource "aws_lambda_function" "pdf_converter_app" {
       DB_PASSWORD = var.db_password
       DB_PORT     = var.db_port
       S3_BUCKET_NAME = var.s3_bucket_name
+      FASTAPI_ROOT_PATH = "/prod"
       # Add any other environment variables your app needs
     }
   }

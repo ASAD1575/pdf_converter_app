@@ -4,88 +4,163 @@ pipeline {
     environment {
         AWS_ACCOUNT_ID = '375299695019'
         AWS_DEFAULT_REGION = 'us-east-1'
-        AWS_ACCESS_KEY_ID = credentials ('AWS_ACCESS_KEY_ID')
-        AWS_SECRET_ACCESS_KEY = credentials ('AWS_SECRET_ACCESS_KEY')
         APP_SOURCE_PATH = 'pdf_converter_FastAPI_app/'
         TF_PATH = '.'
+        APP_ZIP = "app_package.zip"
+        LAYER_ZIP = "dependencies_layer.zip"
+        S3_BUCKET = "pdflambdabucket1575"
     }
 
     stages {
-
-        stage ('checkout') {
+        stage('Initialize Variables') {
             steps {
-                echo 'Checkout Source code from SCM...'
+                script {
+                    env.hostUserId = sh(returnStdout: true, script: 'id -u').trim()
+                    env.hostGroupId = sh(returnStdout: true, script: 'id -g').trim()
+                    echo "Jenkins user/group ID: ${env.hostUserId}:${env.hostGroupId}"
+                }
+            }
+        }
+
+        stage('Checkout Source') {
+            steps {
+                echo 'Checking out source code...'
                 checkout scm
             }
         }
 
-        stage ('Installing Dependencies for Lambda Function...') {
-            steps {
-                script{
-                    echo 'Installing Dependencies for Lambda Function...'
-
-                    dir("${env.TF_PATH}/${env.APP_SOURCE_PATH}"){
-                        sh 
-                        '''
-                            mkdir -p package
-                            pip install --target ./package -r requirements.txt
-                            find . -name "__pycache__" -type d -exec rm -rf {} +
-
-                        '''
-                    }
+        stage('Build Lambda Packages') {
+            agent {
+                docker {
+                    image 'python:3.9-slim'
+                    args '--user 0 --entrypoint=""'
                 }
             }
-        }
-
-        stage ('Terraform Init') {
             steps {
-                script {
-                    echo 'Initializing Terraform...'
-                    
-                    dir(env.TF){
-                        sh 'terraform init -upgrade'
-                    }
-                }
-            }
-        }
+                sh '''
+                apt-get update && apt-get install zip -y
 
-        stage ('Terraform Apply') {
-            steps {
-                echo 'Applying Terraform configuration...'
+                rm -f $APP_ZIP $LAYER_ZIP
+                rm -rf build
+                mkdir -p build/app build/dependencies/python
+                ls -l
+
+                # Build app zip
+                cp -r pdf_converter_FastAPI_app/main.py \
+                    pdf_converter_FastAPI_app/database.py \
+                    pdf_converter_FastAPI_app/models.py \
+                    pdf_converter_FastAPI_app/utils.py \
+                    pdf_converter_FastAPI_app/templates \
+                    pdf_converter_FastAPI_app/static \
+                    build/app/
                 
-                dir(env.TF){
-                    sh 'terraform apply -auto-approve'
-                }
+                cd build/app && zip -r ../../$APP_ZIP . && cd ../..
+
+                # Build dependencies layer zip
+                pip install -r pdf_converter_FastAPI_app/requirements.txt -t build/dependencies/python/
+                cd build/dependencies && zip -r ../../$LAYER_ZIP . && cd ../..
+
+                # Change OwnerShip of the zip files
+                chown ${hostUserId}:${hostGroupId} $APP_ZIP
+                chown ${hostUserId}:${hostGroupId} $LAYER_ZIP
+                '''
+
+                // Pass the zip files to the next stage
+                stash includes: "${APP_ZIP}", name: 'app-code'
+                stash includes: "${LAYER_ZIP}", name: 'dependencies-layer'
             }
         }
-        
-        stage('Post-Deployment Info') {
+
+        stage('Terraform Deploy') {
+            agent {
+                docker {
+                    image 'hashicorp/terraform:1.5.7'
+                    args '--user 0 --entrypoint="" --dns 8.8.8.8'
+                }
+            }
             steps {
                 script {
-                    echo 'Fetching deployment outputs...'
-                    dir(env.TF_PATH) {
-                        def apiGatewayUrl = sh(returnStdout: true, script: 'terraform output -raw api_gateway_url').trim()
-                        echo "Deployment Complete! Your application is accessible at: ${apiGatewayUrl}"
+                    withCredentials([
+                        string(credentialsId: 'AWS_ACCESS_KEY_ID', variable: 'AWS_ACCESS_KEY_ID'),
+                        string(credentialsId: 'AWS_SECRET_ACCESS_KEY', variable: 'AWS_SECRET_ACCESS_KEY')
+                    ]) {
+
+                        // Get the zip files from the previous stage
+                        unstash 'app-code'
+                        unstash 'dependencies-layer'
+
+                        dir(env.TF_PATH) {
+
+                            echo 'Installing Python & Dependencies in Terraform Environment...'
+                            sh 'apk add --no-cache python3 py3-pip coreutils'
+                            sh 'pip install awscli'
+
+                            def fileHashApp = sh(returnStdout: true, script: "sha256sum ${APP_ZIP} | awk '{print \$1}'").trim()
+                            def fileHashLayer = sh(returnStdout: true, script: "sha256sum ${LAYER_ZIP} | awk '{print \$1}'").trim()
+
+                            echo "${fileHashApp}"
+                            echo "${fileHashLayer}"
+
+                            // Copying the zip files to the S3_BUCKET
+                            echo 'Copying the zip files to the AWS_S3_BUCKET...'
+                            sh "aws s3 cp ${APP_ZIP} s3://${S3_BUCKET}/"
+                            sh "aws s3 cp ${LAYER_ZIP} s3://${S3_BUCKET}/"
+
+                            // Create Dynamodb only for first time to run pipeline...
+                            // To run it first_time uncomment it...
+                             
+                            // Create Dynamodb_Table for Terraform state locking
+                            // echo 'Creating Dynamodb_Table for Terraform state locking...'
+                            // sh """
+                            //     aws dynamodb create-table \
+                            //     --table-name terraform-state-lock-table \
+                            //     --attribute-definitions AttributeName=LockID,AttributeType=S \
+                            //     --key-schema AttributeName=LockID,KeyType=HASH \
+                            //     --provisioned-throughput ReadCapacityUnits=5,WriteCapacityUnits=5
+                            // """
+                            // Initializing Terraform
+                            echo 'Initializing Terraform...'
+                            sh 'terraform init -upgrade'
+                            sh """
+                                terraform apply -auto-approve \
+                                -var 's3_key_app=${APP_ZIP}' \
+                                -var 'source_code_hash_app=${fileHashApp}' \
+                                -var 's3_key_layer=${LAYER_ZIP}' \
+                                -var 'source_code_hash_layer=${fileHashLayer}' \
+                                -var 'api_gateway_url'=${apiGatewayUrl}
+                            """
+                        }
                     }
                 }
             }
         }
 
-        post {
-            always {
-                script {
-                    echo 'Cleaning up workspace...'
-                    // cleanWs() // Uncomment to clean the workspace after every build
+        stage('Post-Deployment Info') {
+            agent {
+                docker {
+                    image 'hashicorp/terraform:1.5.7'
+                    args '--user 0 --entrypoint="" --dns 8.8.8.8'
                 }
             }
-            
-            failure {
-                echo 'Pipeline failed! Check logs for errors.'
-            }
-            
-            success {
-                echo 'Pipeline completed successfully!'
+            steps {
+                script {
+                    withCredentials([
+                        string(credentialsId: 'AWS_ACCESS_KEY_ID', variable: 'AWS_ACCESS_KEY_ID'),
+                        string(credentialsId: 'AWS_SECRET_ACCESS_KEY', variable: 'AWS_SECRET_ACCESS_KEY')
+                    ]) {
+                        dir(env.TF_PATH) {
+                            def apiGatewayUrl = sh(returnStdout: true, script: 'terraform output -raw api_gateway_url').trim()
+                            echo "Deployment Complete! Your API Gateway URL: ${apiGatewayUrl}"
+                        }
+                    }
+                }
             }
         }
-    }     
+    }
+
+    post {
+        always { echo 'Cleaning up...' }
+        failure { echo 'Pipeline failed!' }
+        success { echo 'Pipeline completed successfully!' }
+    }
 }

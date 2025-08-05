@@ -430,7 +430,7 @@
             <h1 class="welcome-message">Welcome, {{ user.username }}</h1>
 
             <!-- Upload Form -->
-            <form id="uploadForm">
+            <form id="uploadForm" action="{{ root_path }}/convert" method="post" enctype="multipart/form-data">
                 <input type="file" name="file" accept=".docx" required>
                 <button id="convertBtn" type="submit" class="convert-button">Convert to PDF</button>
             </form>
@@ -482,8 +482,8 @@
                         clearInterval(interval);
                     }
                 }, 300); // Update every 300ms
-
-                const res = await fetch("/convert", { method: "POST", body: formData });
+                
+                const res = await fetch(form.action, { method: "POST", body: formData });
                 const data = await res.json();
 
                 clearInterval(interval); // Clear interval once fetch is complete
@@ -492,7 +492,7 @@
                 progressDiv.style.display = "none"; // Hide progress bar
 
                 if (data.status === "completed") {
-                    downloadLink.href = `/download/${data.file_id}`;
+                    downloadLink.href = `{{ root_path }}/download/${data.file_id}`;
                     downloadDiv.style.display = "block"; // Show download link
                 } else {
                     // Use a custom message box instead of alert()

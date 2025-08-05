@@ -1,5 +1,3 @@
-# modules/lambda/variables.tf
-
 variable "region" {
   description = "The AWS region to deploy the Lambda function in."
   type        = string
@@ -11,11 +9,6 @@ variable "function_name" {
   default     = "pdf-converter-lambda"
 }
 
-variable "source_code_path" {
-  description = "The path to the directory containing your application's Python source code."
-  type        = string
-}
-
 variable "private_subnet_ids" {
   description = "List of private subnet IDs for the Lambda function to connect to the VPC."
   type        = list(string)
@@ -24,14 +17,6 @@ variable "private_subnet_ids" {
 variable "app_security_group_id" {
   description = "The ID of the application security group to attach to the Lambda function."
   type        = string
-}
-
-variable "libreoffice_layer_arn" {
-  description = "The ARN of the LibreOffice Lambda Layer for your region and runtime."
-  type        = string
-  # Example: "arn:aws:lambda:eu-north-1:764866452813:layer:libreoffice-brotli:X"
-  # You need to find the correct ARN for your region and the latest version.
-  # This layer is crucial for the 'libreoffice' command to work within Lambda.
 }
 
 # Database connection environment variables
@@ -66,3 +51,31 @@ variable "s3_bucket_name" {
   description = "The S3 bucket name for storing and retrieving files."
   type = string
 }
+
+variable "source_code_hash_app" {
+  description = "The base64-encoded SHA256 hash of the Lambda function's deployment package."
+  type        = string
+}
+
+variable "source_code_hash_layer" {
+  description = "The base64-encoded SHA256 hash of the Lambda function's layer package."
+  type        = string
+}
+
+variable "s3_key_app" {
+  type = string
+}
+
+variable "s3_key_layer" {
+  type = string
+}
+
+variable "s3_key_layer_libreoffice" {
+  type = string
+}
+
+
+variable "source_code_hash_layer_libreoffice" {
+  type = string
+}
+

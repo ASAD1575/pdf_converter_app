@@ -37,11 +37,8 @@ resource "aws_security_group" "app_sg" {
     protocol    = "tcp"
     cidr_blocks = ["0.0.0.0/0"] # IMPORTANT: Restrict this in production to your office/VPN IPs
   }
-<<<<<<< HEAD
 
   # Ingress rule for RDS (if your app uses a database)
-=======
->>>>>>> 21634b8b717c8262f0a95addd30499b33acfdac0
   ingress {
     description = "Allow SSH access from anywhere (consider restricting to specific IPs)"
     from_port   = 5432

@@ -39,7 +39,7 @@ pipeline {
             }
             steps {
                 sh '''
-                apt-get update -y && apt-get install -y wget unzip gzip
+                apt-get update -y && apt-get install -y wget zip
 
                 rm -f $APP_ZIP $PYTHON_LAYER_ZIP $LIBREOFFICE_LAYER_ZIP
                 rm -rf build

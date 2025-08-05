@@ -5,21 +5,46 @@ from mangum import Mangum
 from database import create_user, verify_user, get_user_by_email, get_user_by_username, update_user_password
 import os, subprocess, uuid, boto3, tempfile
 
-app = FastAPI(root_path="/prod")
-templates = Jinja2Templates(directory="templates")
+import os
+import uuid
+import tempfile
+import subprocess
+import logging
+
+from fastapi import FastAPI, File, UploadFile, status, Request
+from fastapi.responses import JSONResponse, RedirectResponse
+from fastapi.templating import Jinja2Templates
+import boto3
+
+# Configure logging
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
+
+app = FastAPI(root_path="/prod") # Ensure this matches your API Gateway stage
+templates = Jinja2Templates(directory="templates") # Assuming you have a 'templates' directory
 
 # S3 bucket setup
 S3_BUCKET_NAME = os.getenv("S3_BUCKET_NAME")
 s3_client = boto3.client("s3")
 
+# Define the standard path for LibreOffice executable within Lambda layers
+# This is crucial for the subprocess call to find LibreOffice
+LIBREOFFICE_PATH = "/opt/loffice/instdir/program/soffice"
+
 # --- PDF conversion endpoint ---
 @app.post("/convert")
 async def convert_to_pdf(file: UploadFile = File(...)):
+    """
+    Converts an uploaded .docx file to .pdf using LibreOffice within AWS Lambda,
+    stores both original and converted files in S3, and returns a file_id.
+    """
     if not S3_BUCKET_NAME:
         logger.error("S3_BUCKET_NAME environment variable not set.")
         return JSONResponse({"status": "failed", "message": "Server configuration error: S3 bucket not set."}, status_code=500)
 
+    # Validate file type
     if not file.filename.endswith(".docx"):
+        logger.warning(f"Unsupported file type uploaded: {file.filename}. Only .docx files are supported.")
         return JSONResponse({"status": "failed", "message": "Only .docx files are supported for conversion."}, status_code=400)
 
     file_id = str(uuid.uuid4())
@@ -43,46 +68,54 @@ async def convert_to_pdf(file: UploadFile = File(...)):
         s3_client.upload_file(input_docx_temp_path, S3_BUCKET_NAME, docx_s3_key)
 
         # 3. Perform conversion using LibreOffice
-        logger.info(f"Starting LibreOffice conversion for {input_docx_temp_path}")
-        subprocess.run(
-            ["libreoffice", "--headless", "--convert-to", "pdf", input_docx_temp_path, "--outdir", tempfile.gettempdir()],
-            check=True,
-            capture_output=True, # Capture stdout/stderr for debugging
-            text=True # Decode output as text
+        logger.info(f"Starting LibreOffice conversion for {input_docx_temp_path} using {LIBREOFFICE_PATH}")
+        
+        # IMPORTANT: Assign the result of subprocess.run to a variable
+        result = subprocess.run(
+            [LIBREOFFICE_PATH, "--headless", "--convert-to", "pdf", input_docx_temp_path, "--outdir", tempfile.gettempdir()],
+            check=True, # Raise CalledProcessError if the command returns a non-zero exit code
+            capture_output=True, # Capture stdout and stderr
+            text=True # Decode stdout/stderr as text
         )
         logger.info(f"LibreOffice stdout: {result.stdout}")
-        logger.error(f"LibreOffice stderr: {result.stderr}") # LibreOffice often prints to stderr even on success
+        logger.info(f"LibreOffice stderr: {result.stderr}") # LibreOffice often prints to stderr even on success
 
         # 4. Check if PDF was created and upload to S3
         if os.path.exists(output_pdf_temp_path):
-            logger.info(f"Uploading converted PDF to s3://{S3_BUCKET_NAME}/{pdf_s3_key}")
+            logger.info(f"Converted PDF found at {output_pdf_temp_path}. Uploading to s3://{S3_BUCKET_NAME}/{pdf_s3_key}")
             s3_client.upload_file(output_pdf_temp_path, S3_BUCKET_NAME, pdf_s3_key)
             return JSONResponse({"status": "completed", "file_id": file_id})
         else:
-            logger.error(f"PDF output file not found after conversion: {output_pdf_temp_path}")
-            return JSONResponse({"status": "failed", "message": "PDF output file not found after conversion."}, status_code=500)
+            logger.error(f"PDF output file not found after conversion: {output_pdf_temp_path}. LibreOffice might have failed silently.")
+            return JSONResponse({"status": "failed", "message": "PDF output file not found after conversion. Check server logs for LibreOffice errors."}, status_code=500)
 
     except subprocess.CalledProcessError as e:
-        logger.error(f"LibreOffice conversion failed: {e.cmd} returned {e.returncode}. Stdout: {e.stdout}. Stderr: {e.stderr}")
-        return JSONResponse({"status": "failed", "message": "PDF conversion failed. Check server logs."}, status_code=500)
+        # This block catches errors where LibreOffice itself returns a non-zero exit code
+        logger.error(f"LibreOffice conversion failed with exit code {e.returncode}. Command: {e.cmd}. Stdout: {e.stdout}. Stderr: {e.stderr}")
+        return JSONResponse({"status": "failed", "message": f"PDF conversion failed. LibreOffice error: {e.stderr}"}, status_code=500)
     except FileNotFoundError:
-        logger.error("LibreOffice command not found. Ensure Lambda Layer is correctly configured.")
-        return JSONResponse({"status": "failed", "message": "Server error: PDF converter not found."}, status_code=500)
+        # This block catches if the LIBREOFFICE_PATH executable itself is not found
+        logger.error(f"LibreOffice command not found at {LIBREOFFICE_PATH}. Ensure Lambda Layer is correctly configured and points to the correct path.")
+        return JSONResponse({"status": "failed", "message": "Server error: PDF converter not found. Check Lambda layer configuration."}, status_code=500)
     except Exception as e:
+        # Catch any other unexpected errors
         logger.error(f"An unexpected error occurred during conversion: {e}", exc_info=True)
         return JSONResponse({"status": "failed", "message": f"An unexpected server error occurred: {e}"}, status_code=500)
     finally:
         # Clean up temporary files regardless of success or failure
         if os.path.exists(input_docx_temp_path):
             os.remove(input_docx_temp_path)
-            logger.info(f"Cleaned up {input_docx_temp_path}")
+            logger.info(f"Cleaned up input DOCX: {input_docx_temp_path}")
         if os.path.exists(output_pdf_temp_path):
             os.remove(output_pdf_temp_path)
-            logger.info(f"Cleaned up {output_pdf_temp_path}")
+            logger.info(f"Cleaned up output PDF: {output_pdf_temp_path}")
 
 
 @app.get("/download/{file_id}")
 async def download_pdf(file_id: str):
+    """
+    Generates a presigned S3 URL for downloading the converted PDF.
+    """
     if not S3_BUCKET_NAME:
         logger.error("S3_BUCKET_NAME environment variable not set for download.")
         return JSONResponse({"status": "failed", "message": "Server configuration error: S3 bucket not set."}, status_code=500)
@@ -91,14 +124,15 @@ async def download_pdf(file_id: str):
 
     try:
         # Generate a presigned URL for direct download from S3
-        # This avoids proxying large files through Lambda
+        # This avoids proxying large files through Lambda and is more efficient.
         presigned_url = s3_client.generate_presigned_url(
             'get_object',
             Params={'Bucket': S3_BUCKET_NAME, 'Key': pdf_s3_key},
             ExpiresIn=300 # URL valid for 5 minutes
         )
         logger.info(f"Generated presigned URL for {pdf_s3_key}")
-        return RedirectResponse(presigned_url, status_code=status.HTTP_303_SEE_OTHER) # Use 303 for POST-redirect-GET pattern
+        # Use 303 See Other for a clear POST-redirect-GET pattern
+        return RedirectResponse(presigned_url, status_code=status.HTTP_303_SEE_OTHER) 
     except s3_client.exceptions.ClientError as e:
         if e.response['Error']['Code'] == 'NoSuchKey':
             logger.warning(f"Download request for non-existent file: {pdf_s3_key}")

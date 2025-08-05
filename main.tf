@@ -64,10 +64,7 @@ module "lambda_function" {
   function_name             = "pdfconverter"
   private_subnet_ids        = module.vpc.private_subnet_ids
   app_security_group_id     = module.security_group.app_security_group_id
-  
-  # Layers
-  libreoffice_layer_arn       = "arn:aws:lambda:us-east-1:764866452798:layer:libreoffice-gzip:1"
-  
+
   # RDS Environment Variables
   db_host                   = module.rds.rds_endpoint
   db_name                   = module.rds.db_name
@@ -79,11 +76,12 @@ module "lambda_function" {
   s3_bucket_name      = "pdflambdabucket1575"
   s3_key_app          =  var.s3_key_app
   s3_key_layer        = var.s3_key_layer
+  s3_key_layer_libreoffice = var.s3_key_layer_libreoffice
 
   # Ensures Terraform detects zip changes
   source_code_hash_app = var.source_code_hash_app
   source_code_hash_layer = var.source_code_hash_layer
-
+  source_code_hash_layer_libreoffice = var.source_code_hash_layer_libreoffice
 }
 
 # Add the API Gateway module

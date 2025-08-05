@@ -66,7 +66,7 @@ module "lambda_function" {
   app_security_group_id     = module.security_group.app_security_group_id
   
   # Layers
-  libreoffice_layer_arn     = "arn:aws:lambda:us-east-1:764866452798:layer:libreoffice:7"
+  libreoffice_layer_arn     = "arn:aws:lambda:us-east-1:764866452798:layer:libreoffice-brotli:1"
   
   # RDS Environment Variables
   db_host                   = module.rds.rds_endpoint

@@ -110,14 +110,14 @@ pipeline {
                             // To run it first_time uncomment it...
                              
                             // Create Dynamodb_Table for Terraform state locking
-                            // echo 'Creating Dynamodb_Table for Terraform state locking...'
-                            // sh """
-                            //     aws dynamodb create-table \
-                            //     --table-name terraform-state-lock-table \
-                            //     --attribute-definitions AttributeName=LockID,AttributeType=S \
-                            //     --key-schema AttributeName=LockID,KeyType=HASH \
-                            //     --provisioned-throughput ReadCapacityUnits=5,WriteCapacityUnits=5
-                            // """
+                             echo 'Creating Dynamodb_Table for Terraform state locking...'
+                             sh """
+                                 aws dynamodb create-table \
+                                 --table-name terraform-state-lock-table \
+                                 --attribute-definitions AttributeName=LockID,AttributeType=S \
+                                 --key-schema AttributeName=LockID,KeyType=HASH \
+                                 --provisioned-throughput ReadCapacityUnits=5,WriteCapacityUnits=5
+                             """
                             // Initializing Terraform
                             echo 'Initializing Terraform...'
                             sh 'terraform init -upgrade'

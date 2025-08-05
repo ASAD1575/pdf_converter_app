@@ -7,7 +7,8 @@ pipeline {
         APP_SOURCE_PATH = 'pdf_converter_FastAPI_app/'
         TF_PATH = '.'
         APP_ZIP = "app_package.zip"
-        LAYER_ZIP = "dependencies_layer.zip"
+        PYTHON_LAYER_ZIP = "python-dependencies-layer.zip"
+        LIBREOFFICE_LAYER_ZIP = "LIBREOFFICE_LAYER.zip"
         S3_BUCKET = "pdflambdabucket1575"
     }
 
@@ -32,20 +33,22 @@ pipeline {
         stage('Build Lambda Packages') {
             agent {
                 docker {
-                    image 'python:3.12-slim'
+                    image 'public.ecr.aws/lambda/python:3.12'
                     args '--user 0 --entrypoint=""'
                 }
             }
             steps {
                 sh '''
-                apt-get update && apt-get install zip -y
+                yum update -y && yum install -y wget unzip gzip
 
-                rm -f $APP_ZIP $LAYER_ZIP
+                rm -f $APP_ZIP $PYTHON_LAYER_ZIP $LIBREOFFICE_LAYER_ZIP
                 rm -rf build
-                mkdir -p build/app build/dependencies/python
+                mkdir -p build/app build/python_dependencies/python build/libreoffice_layer/opt
                 ls -l
-
+                
                 # Build app zip
+                echo "--- Building Application Code ZIP ---"
+                
                 cp -r pdf_converter_FastAPI_app/main.py \
                     pdf_converter_FastAPI_app/database.py \
                     pdf_converter_FastAPI_app/models.py \
@@ -57,17 +60,32 @@ pipeline {
                 cd build/app && zip -r ../../$APP_ZIP . && cd ../..
 
                 # Build dependencies layer zip
+                echo "--- Building Python Dependencies Layer ZIP ---"
+                
                 pip install -r pdf_converter_FastAPI_app/requirements.txt -t build/dependencies/python/
-                cd build/dependencies && zip -r ../../$LAYER_ZIP . && cd ../..
+                cd build/dependencies && zip -r ../../$PYTHON_LAYER_ZIP . && cd ../..
+
+                # Build lambda_layer dependencies
+                echo "--- Building LibreOffice Layer ZIP ---"
+                LIBREOFFICE_DOWNLOAD_URL="https://github.com/vladgolubev/serverless-libreoffice/releases/download/v1.0.0/lo.tar.gz"
+                LIBREOFFICE_TARBALL="lo.tar.gz"
+
+                wget -O /tmp/$LIBREOFFICE_TARBALL $LIBREOFFICE_DOWNLOAD_URL
+                mkdir -p build/libreoffice_layer/opt/lo
+                tar -xzf /tmp/$LIBREOFFICE_TARBALL -C build/libreoffice_layer/opt/lo/
+                rm -f /tmp/$LIBREOFFICE_TARBALL
+                cd build/libreoffice_layer && zip -r ../../$LIBREOFFICE_LAYER_ZIP . && cd ../..
 
                 # Change OwnerShip of the zip files
                 chown ${hostUserId}:${hostGroupId} $APP_ZIP
-                chown ${hostUserId}:${hostGroupId} $LAYER_ZIP
+                chown ${hostUserId}:${hostGroupId} $PYTHON_LAYER_ZIP
+                chown ${hostUserId}:${hostGroupId} $LIBREOFFICE_LAYER_ZIP
                 '''
 
                 // Pass the zip files to the next stage
                 stash includes: "${APP_ZIP}", name: 'app-code'
-                stash includes: "${LAYER_ZIP}", name: 'dependencies-layer'
+                stash includes: "${PYTHON_LAYER_ZIP}", name: 'python-dependencies-layer'
+                stash includes: "${LIBREOFFICE_LAYER_ZIP}", name: 'libreoffice-layer'
             }
         }
 
@@ -87,7 +105,8 @@ pipeline {
 
                         // Get the zip files from the previous stage
                         unstash 'app-code'
-                        unstash 'dependencies-layer'
+                        unstash 'python-dependencies-layer'
+                        unstash 'libreoffice-layer'
 
                         dir(env.TF_PATH) {
 
@@ -96,15 +115,18 @@ pipeline {
                             sh 'pip install awscli'
 
                             def fileHashApp = sh(returnStdout: true, script: "sha256sum ${APP_ZIP} | awk '{print \$1}'").trim()
-                            def fileHashLayer = sh(returnStdout: true, script: "sha256sum ${LAYER_ZIP} | awk '{print \$1}'").trim()
-
-                            echo "${fileHashApp}"
-                            echo "${fileHashLayer}"
+                            def fileHashLayer = sh(returnStdout: true, script: "sha256sum ${PYTHON_LAYER_ZIP} | awk '{print \$1}'").trim()
+                            def fileHashLibre = sh(returnStdout: true, script: "sha256sum ${LIBREOFFICE_LAYER_ZIP} | awk '{print \$1}'").trim()
+                            
+                            echo "Source code FileHash - ${fileHashApp}"
+                            echo "Pyhton dependencies FileHash - ${fileHashLayer}"
+                            echo "LibreOffice dependencies FileHash - ${fileHashLibre}"
 
                             // Copying the zip files to the S3_BUCKET
                             echo 'Copying the zip files to the AWS_S3_BUCKET...'
                             sh "aws s3 cp ${APP_ZIP} s3://${S3_BUCKET}/"
-                            sh "aws s3 cp ${LAYER_ZIP} s3://${S3_BUCKET}/"
+                            sh "aws s3 cp ${PYTHON_LAYER_ZIP} s3://${S3_BUCKET}/"
+                            sh "aws s3 cp ${LIBREOFFICE_LAYER_ZIP} s3://${S3_BUCKET}/"
 
                             // Create Dynamodb only for first time to run pipeline...
                             // To run it first_time uncomment it...
@@ -125,8 +147,11 @@ pipeline {
                                 terraform apply -auto-approve \
                                 -var 's3_key_app=${APP_ZIP}' \
                                 -var 'source_code_hash_app=${fileHashApp}' \
-                                -var 's3_key_layer=${LAYER_ZIP}' \
-                                -var 'source_code_hash_layer=${fileHashLayer}'
+                                -var 's3_key_layer=${PYTHON_LAYER_ZIP}' \
+                                -var 'source_code_hash_layer=${fileHashLayer}' \
+                                -var 's3_key_layer_libreoffice=${LIBREOFFICE_LAYER_ZIP}' \
+                                -var 'source_code_hash_layer_libreoffice=${fileHashLibre}' \
+                                -var 'api_gateway_url'=${apiGatewayUrl}
                             """
                         }
                     }

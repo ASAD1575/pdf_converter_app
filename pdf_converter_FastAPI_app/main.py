@@ -27,6 +27,9 @@ s3_client = boto3.client("s3")
 LIBREOFFICE_PATH = "/opt/bin/soffice"  # Correct path for most Lambda LibreOffice layers
 
 # -------------------- Health Check for LibreOffice --------------------
+for root, dirs, files in os.walk("/opt"):
+    print(root, files)
+
 try:
     version_check = subprocess.run([LIBREOFFICE_PATH, "--version"], capture_output=True, text=True)
     logger.info(f"LibreOffice version: {version_check.stdout or version_check.stderr}")

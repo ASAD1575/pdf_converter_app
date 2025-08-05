@@ -1,8 +1,9 @@
 fastapi
 sqlalchemy
 jinja2
-passlib[bcrypt]
 python-multipart
 psycopg2-binary
 boto3
 Mangum
+bcrypt<4.0.0
+passlib[bcrypt]

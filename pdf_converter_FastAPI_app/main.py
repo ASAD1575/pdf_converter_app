@@ -24,7 +24,7 @@ S3_BUCKET_NAME = os.getenv("S3_BUCKET_NAME")
 s3_client = boto3.client("s3")
 
 # -------------------- LibreOffice Path --------------------
-LIBREOFFICE_PATH = "/opt/bin/soffice"  # Correct path for most Lambda LibreOffice layers
+LIBREOFFICE_PATH = "/opt/libreoffice/program/soffice"  # Correct path for most Lambda LibreOffice layers
 
 # -------------------- Health Check for LibreOffice --------------------
 for root, dirs, files in os.walk("/opt"):

@@ -33,13 +33,13 @@ pipeline {
         stage('Build Lambda Packages') {
             agent {
                 docker {
-                    image 'public.ecr.aws/lambda/python:3.12'
+                    image 'python:3.12-slim'
                     args '--user 0 --entrypoint=""'
                 }
             }
             steps {
                 sh '''
-                yum update -y && yum install -y wget unzip gzip
+                apt-get update -y && apt-get install -y wget unzip gzip
 
                 rm -f $APP_ZIP $PYTHON_LAYER_ZIP $LIBREOFFICE_LAYER_ZIP
                 rm -rf build

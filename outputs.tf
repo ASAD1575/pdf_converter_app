@@ -62,4 +62,8 @@ output "lambda_log_group_arn" {
 
 output "vpc_id" {
   value = module.vpc.vpc_id
+<<<<<<< HEAD
 }
+=======
+}
+>>>>>>> 21634b8b717c8262f0a95addd30499b33acfdac0

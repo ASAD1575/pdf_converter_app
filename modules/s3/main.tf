@@ -23,3 +23,24 @@ resource "aws_s3_bucket_public_access_block" "public_access" {
   restrict_public_buckets = false
 }
 
+<<<<<<< HEAD
+=======
+# Create DynamoDB Table for State Locking
+resource "aws_dynamodb_table" "terraform_state_lock" {
+  name         = "terraform-state-lock-table"
+  billing_mode = "PROVISIONED"
+  read_capacity  = 5
+  write_capacity = 5
+  hash_key     = "LockID"
+
+  attribute {
+    name = "LockID"
+    type = "S"
+  }
+
+  tags = {
+    Name = "pdfconverterappdynamodbtable"
+  }
+  
+}
+>>>>>>> 21634b8b717c8262f0a95addd30499b33acfdac0

@@ -70,7 +70,7 @@ pipeline {
                 LIBREOFFICE_DOWNLOAD_URL="https://github.com/hanhanhan/libreoffice-lambda-layer/releases/download/v7.0.0/libreoffice-layer.zip"
                 LIBREOFFICE_ZIP_FILE="libreoffice-layer.zip"
 
-                wget -O /tmp/$LIBREOFFICE_TARBALL $LIBREOFFICE_DOWNLOAD_URL
+                wget -O /tmp/$LIBREOFFICE_ZIP_FILE $LIBREOFFICE_DOWNLOAD_URL
                 mkdir -p build/libreoffice_layer/opt/lo
                 tar -xzf /tmp/$LIBREOFFICE_TARBALL -C build/libreoffice_layer/opt/lo/
                 rm -f /tmp/$LIBREOFFICE_TARBALL

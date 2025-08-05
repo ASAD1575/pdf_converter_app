@@ -67,8 +67,8 @@ pipeline {
 
                 # Build lambda_layer dependencies
                 echo "--- Building LibreOffice Layer ZIP ---"
-                LIBREOFFICE_DOWNLOAD_URL="https://github.com/vladgolubev/serverless-libreoffice/releases/download/v1.0.0/lo.tar.gz"
-                LIBREOFFICE_TARBALL="lo.tar.gz"
+                LIBREOFFICE_DOWNLOAD_URL="https://github.com/shelfio/lambda-libreoffice/releases/download/v7.6.4.2/libreoffice-brotli-7.6.4.2-x86_64.tar.br"
+                LIBREOFFICE_TARBALL="libreoffice-brotli-7.6.4.2-x86_64.tar.br"
 
                 wget -O /tmp/$LIBREOFFICE_TARBALL $LIBREOFFICE_DOWNLOAD_URL
                 mkdir -p build/libreoffice_layer/opt/lo

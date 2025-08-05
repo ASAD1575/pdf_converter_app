@@ -33,22 +33,23 @@ pipeline {
         stage('Build Lambda Packages') {
             agent {
                 docker {
-                    image 'python:3.12-slim'
+                    image 'public.aws/lambda/python:3.12'
                     args '--user 0 --entrypoint=""'
                 }
             }
             steps {
                 sh '''
-                apt-get update -y && apt-get install -y wget zip
+                # Install necessary tools for package management and file operations
+                yum update -y && yum install -y wget unzip gzip bzip2
 
+                # Clean up previous build artifacts
                 rm -f $APP_ZIP $PYTHON_LAYER_ZIP $LIBREOFFICE_LAYER_ZIP
                 rm -rf build
+
+                # Create build directories for app, python dependencies, and LibreOffice
                 mkdir -p build/app build/python_dependencies/python build/libreoffice_layer/opt
-                ls -l
-                
-                # Build app zip
+
                 echo "--- Building Application Code ZIP ---"
-                
                 cp -r pdf_converter_FastAPI_app/main.py \
                     pdf_converter_FastAPI_app/database.py \
                     pdf_converter_FastAPI_app/models.py \
@@ -59,24 +60,32 @@ pipeline {
                 
                 cd build/app && zip -r ../../$APP_ZIP . && cd ../..
 
-                # Build dependencies layer zip
                 echo "--- Building Python Dependencies Layer ZIP ---"
-                ls -l
-                pip install -r pdf_converter_FastAPI_app/requirements.txt -t build/dependencies/python/
-                cd build/dependencies && zip -r ../../$PYTHON_LAYER_ZIP . && cd ../..
+                # Install Python dependencies into the layer directory
+                pip install -r pdf_converter_FastAPI_app/requirements.txt -t build/python_dependencies/python/
+                cd build/python_dependencies && zip -r ../../$PYTHON_LAYER_ZIP . && cd ../..
 
-                # Build lambda_layer dependencies
                 echo "--- Building LibreOffice Layer ZIP ---"
+                # Download a pre-compiled, stripped-down LibreOffice build for Lambda.
+                # Using a reliable source for a direct ZIP file layer.
                 LIBREOFFICE_DOWNLOAD_URL="https://github.com/hanhanhan/libreoffice-lambda-layer/releases/download/v7.0.0/libreoffice-layer.zip"
-                LIBREOFFICE_ZIP_FILE="libreoffice-layer.zip"
-
-                wget -O /tmp/$LIBREOFFICE_TARBALL $LIBREOFFICE_DOWNLOAD_URL
+                LIBREOFFICE_ZIP_FILE="libreoffice-layer.zip" # Updated filename
+                
+                wget -O /tmp/$LIBREOFFICE_ZIP_FILE $LIBREOFFICE_DOWNLOAD_URL
+                
+                # Create the target directory for LibreOffice within the layer structure
                 mkdir -p build/libreoffice_layer/opt/lo
-                tar -xzf /tmp/$LIBREOFFICE_TARBALL -C build/libreoffice_layer/opt/lo/
-                rm -f /tmp/$LIBREOFFICE_TARBALL
+
+                # Unzip the LibreOffice layer directly into the /opt/lo directory of the layer
+                unzip /tmp/$LIBREOFFICE_ZIP_FILE -d build/libreoffice_layer/opt/lo/
+
+                # Clean up temporary files
+                rm -f /tmp/$LIBREOFFICE_ZIP_FILE
+
+                # Zip the LibreOffice layer
                 cd build/libreoffice_layer && zip -r ../../$LIBREOFFICE_LAYER_ZIP . && cd ../..
 
-                # Change OwnerShip of the zip files
+                echo "--- Changing Ownership of ZIP files ---"
                 chown ${hostUserId}:${hostGroupId} $APP_ZIP
                 chown ${hostUserId}:${hostGroupId} $PYTHON_LAYER_ZIP
                 chown ${hostUserId}:${hostGroupId} $LIBREOFFICE_LAYER_ZIP
@@ -85,7 +94,7 @@ pipeline {
                 // Pass the zip files to the next stage
                 stash includes: "${APP_ZIP}", name: 'app-code'
                 stash includes: "${PYTHON_LAYER_ZIP}", name: 'python-dependencies-layer'
-                stash includes: "${LIBREOFFICE_LAYER_ZIP}", name: 'libreoffice-layer'
+                stash includes: "${LIBREOFFRE_LAYER_ZIP}", name: 'libreoffice-layer'
             }
         }
 

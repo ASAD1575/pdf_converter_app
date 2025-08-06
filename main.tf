@@ -7,6 +7,14 @@ terraform {
   }
 }
 
+resource "aws_ecr_repository" "app_repo" {
+  name                 = "${var.app_name}-repo"
+  image_tag_mutability = "MUTABLE"
+
+  tags = {
+    Name = "${var.app_name}-repo"
+  }
+}
 
 # Create DynamoDB Table for State Locking
 # resource "aws_dynamodb_table" "terraform-state-lock-table" {
@@ -64,9 +72,11 @@ module "lambda_function" {
   function_name             = "pdfconverter"
   private_subnet_ids        = module.vpc.private_subnet_ids
   app_security_group_id     = module.security_group.app_security_group_id
+  app_name                  = "pdf-converter"
+  secret_key                = var.secret_key
   
   # Layers
-  libreoffice_layer_arn     = "arn:aws:lambda:us-east-1:764866452798:layer:libreoffice-brotli:1"
+  # libreoffice_layer_arn     = "arn:aws:lambda:us-east-1:764866452798:layer:libreoffice-brotli:1"
   
   # RDS Environment Variables
   db_host                   = module.rds.rds_endpoint
@@ -78,11 +88,11 @@ module "lambda_function" {
   # S3 (Code and Layer Sources)
   s3_bucket_name      = "pdflambdabucket1575"
   s3_key_app          =  var.s3_key_app
-  s3_key_layer        = var.s3_key_layer
+  # s3_key_layer        = var.s3_key_layer
 
   # Ensures Terraform detects zip changes
-  source_code_hash_app = var.source_code_hash_app
-  source_code_hash_layer = var.source_code_hash_layer
+  # source_code_hash_app = var.source_code_hash_app
+  # source_code_hash_layer = var.source_code_hash_layer
 
 }
 

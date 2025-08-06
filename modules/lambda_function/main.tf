@@ -59,37 +59,49 @@ resource "aws_iam_role_policy" "lambda_s3_access" {
           "arn:aws:s3:::${var.s3_bucket_name}",
           "arn:aws:s3:::${var.s3_bucket_name}/*"
         ]
-      }
+      },
+      # Permissions for VPC networking, required to access RDS.
+      {
+        Effect = "Allow"
+        Action = [
+          "ec2:CreateNetworkInterface",
+          "ec2:DescribeNetworkInterfaces",
+          "ec2:DeleteNetworkInterface"
+        ]
+        Resource = "*"
+      },
     ]
   })
 }
 
 # 2. Lambda Layer for Dependencies (from S3)
 # ------------------------------
-resource "aws_lambda_layer_version" "python_dependencies" {
-  layer_name          = "${var.function_name}-dependencies"
-  s3_bucket           = var.s3_bucket_name
-  s3_key              = var.s3_key_layer
-  compatible_runtimes = ["python3.12"]
+# resource "aws_lambda_layer_version" "python_dependencies" {
+#   layer_name          = "${var.function_name}-dependencies"
+#   s3_bucket           = var.s3_bucket_name
+#   s3_key              = var.s3_key_layer
+#   compatible_runtimes = ["python3.12"]
 
-  # Helps Terraform detect updates
-  source_code_hash = var.source_code_hash_layer
-}
+#   # Helps Terraform detect updates
+#   source_code_hash = var.source_code_hash_layer
+# }
 
 # 3. AWS Lambda Function
 resource "aws_lambda_function" "pdf_converter_app" {
   function_name = var.function_name
-  handler       = "main.handler"              # FAST API wrapped by Mangum
-  runtime       = "python3.12" 
+  package_type  = "Image"
+  image_uri     = "${aws_ecr_repository.app_repo.repository_url}:latest"
+  # handler       = "main.handler"              # FAST API wrapped by Mangum
+  # runtime       = "python3.12" 
   role          = aws_iam_role.lambda_exec_role.arn
   timeout       = 300 
-  memory_size   = 1024 
+  memory_size   = 1536 
 
   # Code from S3
   s3_bucket         = var.s3_bucket_name
   s3_key            = var.s3_key_app
-  source_code_hash  = var.source_code_hash_app
-  
+  # source_code_hash  = var.source_code_hash_app
+
   # VPC Configuration (to access RDS)
   vpc_config {
     subnet_ids         = var.private_subnet_ids           # Lambda should be in private subnets
@@ -97,10 +109,10 @@ resource "aws_lambda_function" "pdf_converter_app" {
   }
 
   # Layers: Python dependencies + LibreOffice
-  layers = [
-    aws_lambda_layer_version.python_dependencies.arn,
-    var.libreoffice_layer_arn
-  ]
+  # layers = [
+  #   aws_lambda_layer_version.python_dependencies.arn,
+  #   var.libreoffice_layer_arn
+  # ]
 
   # Environment variables for the application (e.g., database connection)
   environment {
@@ -111,6 +123,7 @@ resource "aws_lambda_function" "pdf_converter_app" {
       DB_PASSWORD = var.db_password
       DB_PORT     = var.db_port
       S3_BUCKET_NAME = var.s3_bucket_name
+      SERCRET_KEY = var.secret_key
       FASTAPI_ROOT_PATH = "/prod"
       # Add any other environment variables your app needs
     }

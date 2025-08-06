@@ -1,5 +1,6 @@
 # --- STAGE 1: Build dependencies ---
 <<<<<<< HEAD
+<<<<<<< HEAD
 # This stage installs LibreOffice and other dependencies into a base Debian image.
 # We're doing this separately to keep the final image clean and small.
 FROM debian:bullseye-slim as build
@@ -13,6 +14,12 @@ FROM debian:bullseye-slim as build
 
 # Install LibreOffice and other necessary tools.
 >>>>>>> c2629fe (m)
+=======
+# This stage installs LibreOffice and other large dependencies.
+FROM debian:bullseye-slim as build
+
+# Install LibreOffice and other necessary tools.
+>>>>>>> 321deaf41431f0144cd9f27b978e085154c9096b
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
         libreoffice \
@@ -24,12 +31,16 @@ RUN apt-get update \
 # --- STAGE 2: Final Lambda Image ---
 # This is the final, lean image that will run in AWS Lambda.
 <<<<<<< HEAD
+<<<<<<< HEAD
 # It uses the official Lambda Python 3.10 base image.
+=======
+>>>>>>> 321deaf41431f0144cd9f27b978e085154c9096b
 FROM public.ecr.aws/lambda/python:3.10
 
-# Set the working directory in the container.
+# Set the working directory for the application code.
 WORKDIR /var/task
 
+<<<<<<< HEAD
 # Copy only the LibreOffice binaries and libraries from the build stage.
 # This keeps the final image size to a minimum.
 =======
@@ -41,22 +52,32 @@ WORKDIR /var/task
 # Copy the LibreOffice binaries and libraries from the build stage.
 # This is a critical step that keeps the final image size to a minimum.
 >>>>>>> c2629fe (m)
+=======
+# Copy the LibreOffice binaries and libraries from the build stage.
+# This is a critical step that keeps the final image size to a minimum.
+>>>>>>> 321deaf41431f0144cd9f27b978e085154c9096b
 COPY --from=build /usr/bin/libreoffice /usr/bin/libreoffice
 COPY --from=build /usr/lib/libreoffice /usr/lib/libreoffice
 COPY --from=build /usr/share/fonts /usr/share/fonts
 COPY --from=build /usr/share/libreoffice /usr/share/libreoffice
 
 <<<<<<< HEAD
+<<<<<<< HEAD
 # Install your Python dependencies.
 # We copy `requirements.txt` first to cache this layer.
 # If requirements don't change, this step is skipped.
 COPY requirements.txt .
+=======
+# Install Python dependencies from your `requirements.txt` file.
+# The path is now relative to the root of your project.
+COPY pdf_converter_FastAPI_app/requirements.txt .
+>>>>>>> 321deaf41431f0144cd9f27b978e085154c9096b
 RUN pip install -r requirements.txt --target .
 
-# Copy the application code into the image.
-# This should be the last step to ensure the cache is used.
-COPY . .
+# Copy your entire application code directory into the image.
+COPY pdf_converter_FastAPI_app/ .
 
+<<<<<<< HEAD
 # Set the command to run your Lambda function.
 =======
 # Install Python dependencies from your `requirements.txt` file.
@@ -71,4 +92,9 @@ COPY pdf_converter_FastAPI_app/ .
 # This command sets the entry point for the Lambda function.
 # It assumes a handler function named 'handler' in a file named 'handler.py'.
 >>>>>>> c2629fe (m)
+=======
+# Since you're using FastAPI, you'll need a handler file.
+# This command sets the entry point for the Lambda function.
+# It assumes a handler function named 'handler' in a file named 'handler.py'.
+>>>>>>> 321deaf41431f0144cd9f27b978e085154c9096b
 CMD ["handler.handler"]

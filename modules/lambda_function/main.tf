@@ -89,7 +89,7 @@ resource "aws_lambda_layer_version" "python_dependencies" {
 # 3. AWS Lambda Function
 resource "aws_lambda_function" "pdf_converter_app" {
   function_name = var.function_name
-  package_type  = "Image"
+  # package_type  = "Image"
   handler       = "main.handler"              # FAST API wrapped by Mangum
   runtime       = "python3.9" 
   role          = aws_iam_role.lambda_exec_role.arn

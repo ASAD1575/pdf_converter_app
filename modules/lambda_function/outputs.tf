@@ -15,7 +15,7 @@ output "function_invoke_arn" {
   value       = aws_lambda_function.pdf_converter_app.invoke_arn
 }
 
-output "ecr_repository_uri" {
-  description = "The URI of the ECR repository."
-  value       = aws_ecr_repository.app_repo.repository_url
-}
+# output "ecr_repository_uri" {
+#   description = "The URI of the ECR repository."
+#   value       = aws_ecr_repository.app_repo.repository_url
+# }

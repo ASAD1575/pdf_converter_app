@@ -89,3 +89,6 @@ variable "secret_key" {
   
 # }
 
+variable "image_uri" {
+  type = string
+}

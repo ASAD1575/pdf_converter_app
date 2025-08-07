@@ -73,6 +73,7 @@ module "lambda_function" {
   private_subnet_ids        = module.vpc.private_subnet_ids
   app_security_group_id     = module.security_group.app_security_group_id
   secret_key                = var.secret_key
+  image_uri                 = var.image_uri
   # Layers
   # libreoffice_layer_arn     = "arn:aws:lambda:us-east-1:764866452798:layer:libreoffice-brotli:1"
   
@@ -87,7 +88,7 @@ module "lambda_function" {
   s3_bucket_name      = "pdflambdabucket1575"
   # s3_key_app          =  var.s3_key_app
   # s3_key_layer        = var.s3_key_layer
-  
+
   # Ensures Terraform detects zip changes
   # source_code_hash_app = var.source_code_hash_app
   # source_code_hash_layer = var.source_code_hash_layer

@@ -90,7 +90,7 @@ resource "aws_iam_role_policy" "lambda_s3_access" {
 resource "aws_lambda_function" "pdf_converter_app" {
   function_name = var.function_name
   package_type  = "Image"
-  image_uri     = "${"375299695019.dkr.ecr.us-east-1.amazonaws.com/pdf_app_repo"}:latest"
+  image_uri     = var.image_uri
   # handler       = "main.handler"              # FAST API wrapped by Mangum
   # runtime       = "python3.12" 
   role          = aws_iam_role.lambda_exec_role.arn

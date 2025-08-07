@@ -32,3 +32,8 @@ variable "app_name" {
   default     = "pdf-converter" 
   
 }
+
+variable "image_uri" {
+  type = string
+  default = "375299695019.dkr.ecr.us-east-1.amazonaws.com/pdf_app_repo"
+}

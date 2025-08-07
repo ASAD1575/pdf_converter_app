@@ -48,7 +48,7 @@ pipeline {
             }
         }
         
-        // Stage 3: Publish the layer to AWS Lambda.
+        // Stage 2: Publish the layer to AWS Lambda.
         stage('Publish Lambda Layer') {
             agent {
                 docker {
@@ -84,7 +84,7 @@ pipeline {
             }
         }
 
-        // Stage 4: Upload the artifact to S3.
+        // Stage 3: Upload the artifact to S3.
         stage('Upload to S3') {
             agent {
                 docker {
@@ -107,7 +107,7 @@ pipeline {
             }
         }
 
-        // Stage 5: Build the Lambda packages.
+        // Stage 4: Build the Lambda packages.
         stage('Build Lambda Packages') {
             agent {
                 docker {
@@ -150,7 +150,7 @@ pipeline {
         }
 
 
-        // Stage 6: Deploy using Terraform.
+        // Stage 5: Deploy using Terraform.
         stage('Terraform Deploy') {
             agent {
                 docker {
@@ -218,7 +218,7 @@ pipeline {
         }
 
         
-        // Stage 7: Post-deployment information.
+        // Stage 6: Post-deployment information.
         stage('Post-Deployment Info') {
             agent {
                 docker {

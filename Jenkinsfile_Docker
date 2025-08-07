@@ -176,7 +176,7 @@ pipeline {
     }
    
     stages {
-        
+
         stage('Terraform Init') {
             agent {
                 docker {
@@ -192,7 +192,7 @@ pipeline {
                     ]) {
                         sh """
                             terraform init -upgrade
-                            terraform init -auto-approve
+                            terraform apply -auto-approve
                         """
                     }
                 }

@@ -60,16 +60,6 @@ resource "aws_iam_role_policy" "lambda_s3_access" {
           "arn:aws:s3:::${var.s3_bucket_name}/*"
         ]
       },
-      # Permissions for VPC networking, required to access RDS.
-      {
-        Effect = "Allow"
-        Action = [
-          "ec2:CreateNetworkInterface",
-          "ec2:DescribeNetworkInterfaces",
-          "ec2:DeleteNetworkInterface"
-        ]
-        Resource = "*"
-      },
     ]
   })
 }

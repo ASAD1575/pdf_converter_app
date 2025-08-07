@@ -75,7 +75,7 @@ module "lambda_function" {
   # secret_key                = var.secret_key
   # image_uri                 = var.image_uri
   # Layers
-  libreoffice_layer_arn     = "arn:aws:lambda:us-east-1:754228965706:layer:LibreOffice-Python39:2"
+  libreoffice_layer_arn     = var.libreoffice_layer_arn # Ensure this is set to the correct ARN for your region and runtime
   
   # RDS Environment Variables
   db_host                   = module.rds.rds_endpoint

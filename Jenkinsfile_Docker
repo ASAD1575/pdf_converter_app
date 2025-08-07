@@ -39,10 +39,12 @@ pipeline {
                 // Clones the specified repository.
                 git url: 'https://github.com/vladholubiev/serverless-libreoffice.git', branch: 'master'
                 sh 'ls -l'
+                sh 'docker-compose config --services'
 
                 // Building the Docker image for the LibreOffice Lambda layer.
                 echo 'Building Lambda layer with Docker...'
-                sh 'docker-compose run --rm --entrypoint="sh /build-libreoffice-layer.sh" build'
+                sh 'docker-compose run --rm --entrypoint="sh /build-libreoffice-layer.sh" libreoffice'
+                sh 'ls -lh libreoffice-lambda-layer/'
             }
         }
         

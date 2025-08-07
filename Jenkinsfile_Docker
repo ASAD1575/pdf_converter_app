@@ -26,16 +26,7 @@ pipeline {
         }
 
         // Stage 1: Checkout the Git repository.
-        stage('Checkout') {
-            steps {
-                echo 'Cloning Git repository...'
-                // Clones the specified repository.
-                git url: 'https://github.com/vladholubiev/serverless-libreoffice.git', branch: 'master'
-            }
-        }
-
-        // Stage 2: Build the Lambda layer using docker-compose.
-        stage('Build Layer') {
+        stage('Checkout & Build') {
             agent {
                 docker {
                     image 'docker/compose:latest'
@@ -43,210 +34,224 @@ pipeline {
                 }
             }
             steps {
+                echo 'Cloning Git repository...'
+                // Clones the specified repository.
+                git url: 'https://github.com/vladholubiev/serverless-libreoffice.git', branch: 'master'
+                sh 'ls -l'
+                // echo 'Building Lambda layer with Docker...'
+                // sh 'docker-compose run --rm --entrypoint="sh /build-libreoffice-layer.sh" build'
+            }
+        }
+
+        // Stage 2: Build the Lambda layer using docker-compose.
+        stage('Build Layer') {
+            
+            steps {
                 echo 'Building Lambda layer with Docker...'
                 // Navigates to the libreoffice-lambda-layer directory.
                 
                 // This command uses the docker-compose file in the repo to build the layer.
                 // It creates a zip file named 'layers.zip' in the current directory.
-                sh 'docker-compose run --rm --entrypoint="sh /build-libreoffice-layer.sh" build'
+                sh 'ls -l'
+                
                 
             }
         }
         
 
-        // Stage 3: Publish the layer to AWS Lambda.
-        stage('Publish Lambda Layer') {
-            agent {
-                docker {
-                    image 'amazon/aws-cli:latest'
-                    args '--user 0 --entrypoint=""'
-                }
-            }
-            steps {
-                script {
-                    withCredentials([
-                        string(credentialsId: 'AWS_ACCESS_KEY_ID', variable: 'AWS_ACCESS_KEY_ID'),
-                        string(credentialsId: 'AWS_SECRET_ACCESS_KEY', variable: 'AWS_SECRET_ACCESS_KEY')
-                    ]) {
-                    echo 'Publishing new Lambda layer version...'
-                    // This command publishes a new version of the layer from the zip file.
-                    // The output is a JSON object which we need to parse.
-                    // The 'dir' block is used here to ensure the command is run from the correct directory.
-                    dir('libreoffice-lambda-layer') {
-                        def output = sh(returnStdout: true, script:
-                            "aws lambda publish-layer-version " +
-                            "--layer-name ${LAYER_NAME} " +
-                            "--zip-file fileb://${ARTIFACT_NAME} " +
-                            "--compatible-runtimes python3.7 python3.8 python3.9 python3.10 " +
-                            "--query 'LayerVersionArn' --output text"
-                        ).trim()
+    //     // Stage 3: Publish the layer to AWS Lambda.
+    //     stage('Publish Lambda Layer') {
+    //         agent {
+    //             docker {
+    //                 image 'amazon/aws-cli:latest'
+    //                 args '--user 0 --entrypoint=""'
+    //             }
+    //         }
+    //         steps {
+    //             script {
+    //                 withCredentials([
+    //                     string(credentialsId: 'AWS_ACCESS_KEY_ID', variable: 'AWS_ACCESS_KEY_ID'),
+    //                     string(credentialsId: 'AWS_SECRET_ACCESS_KEY', variable: 'AWS_SECRET_ACCESS_KEY')
+    //                 ]) {
+    //                 echo 'Publishing new Lambda layer version...'
+    //                 // This command publishes a new version of the layer from the zip file.
+    //                 // The output is a JSON object which we need to parse.
+    //                 // The 'dir' block is used here to ensure the command is run from the correct directory.
+    //                 dir('libreoffice-lambda-layer') {
+    //                     def output = sh(returnStdout: true, script:
+    //                         "aws lambda publish-layer-version " +
+    //                         "--layer-name ${LAYER_NAME} " +
+    //                         "--zip-file fileb://${ARTIFACT_NAME} " +
+    //                         "--compatible-runtimes python3.7 python3.8 python3.9 python3.10 " +
+    //                         "--query 'LayerVersionArn' --output text"
+    //                     ).trim()
 
-                        // Set the environment variable with the ARN of the newly published layer version.
-                        env.LAYER_VERSION_ARN = output
-                        echo "Published layer version ARN: ${env.LAYER_VERSION_ARN}"
-                        }
-                    }
-                }
-            }
-        }
+    //                     // Set the environment variable with the ARN of the newly published layer version.
+    //                     env.LAYER_VERSION_ARN = output
+    //                     echo "Published layer version ARN: ${env.LAYER_VERSION_ARN}"
+    //                     }
+    //                 }
+    //             }
+    //         }
+    //     }
 
-        // Stage 4: Upload the artifact to S3.
-        stage('Upload to S3') {
-            agent {
-                docker {
-                    image 'amazon/aws-cli:latest'
-                    args '--user 0 --entrypoint=""'
-                }
-            }
+    //     // Stage 4: Upload the artifact to S3.
+    //     stage('Upload to S3') {
+    //         agent {
+    //             docker {
+    //                 image 'amazon/aws-cli:latest'
+    //                 args '--user 0 --entrypoint=""'
+    //             }
+    //         }
 
-            // This 'withCredentials' block securely uses the AWS credentials configured in Jenkins.
-            steps {
-                echo 'Uploading artifact to S3...'
-                withCredentials([
-                        string(credentialsId: 'AWS_ACCESS_KEY_ID', variable: 'AWS_ACCESS_KEY_ID'),
-                        string(credentialsId: 'AWS_SECRET_ACCESS_KEY', variable: 'AWS_SECRET_ACCESS_KEY')
-                    ]) {
-                    // Uses the AWS CLI to copy the file to S3.
-                    // The --acl private flag ensures the file isn't publicly accessible by default.
-                    sh "aws s3 cp libreoffice-lambda-layer/${ARTIFACT_NAME} s3://${S3_BUCKET}/${ARTIFACT_NAME} --acl private"
-                }
-            }
-        }
+    //         // This 'withCredentials' block securely uses the AWS credentials configured in Jenkins.
+    //         steps {
+    //             echo 'Uploading artifact to S3...'
+    //             withCredentials([
+    //                     string(credentialsId: 'AWS_ACCESS_KEY_ID', variable: 'AWS_ACCESS_KEY_ID'),
+    //                     string(credentialsId: 'AWS_SECRET_ACCESS_KEY', variable: 'AWS_SECRET_ACCESS_KEY')
+    //                 ]) {
+    //                 // Uses the AWS CLI to copy the file to S3.
+    //                 // The --acl private flag ensures the file isn't publicly accessible by default.
+    //                 sh "aws s3 cp libreoffice-lambda-layer/${ARTIFACT_NAME} s3://${S3_BUCKET}/${ARTIFACT_NAME} --acl private"
+    //             }
+    //         }
+    //     }
 
-        // Stage 5: Build the Lambda packages.
-        stage('Build Lambda Packages') {
-            agent {
-                docker {
-                    image 'python:3.12-slim'
-                    args '--user 0 --entrypoint=""'
-                }
-            }
-            steps {
-                sh '''
-                apt-get update && apt-get install zip -y
+    //     // Stage 5: Build the Lambda packages.
+    //     stage('Build Lambda Packages') {
+    //         agent {
+    //             docker {
+    //                 image 'python:3.12-slim'
+    //                 args '--user 0 --entrypoint=""'
+    //             }
+    //         }
+    //         steps {
+    //             sh '''
+    //             apt-get update && apt-get install zip -y
 
-                rm -f $APP_ZIP $LAYER_ZIP
-                rm -rf build
-                mkdir -p build/app build/dependencies/python
-                ls -l
+    //             rm -f $APP_ZIP $LAYER_ZIP
+    //             rm -rf build
+    //             mkdir -p build/app build/dependencies/python
+    //             ls -l
 
-                # Build app zip
-                cp -r pdf_converter_FastAPI_app/main.py \
-                    pdf_converter_FastAPI_app/database.py \
-                    pdf_converter_FastAPI_app/models.py \
-                    pdf_converter_FastAPI_app/utils.py \
-                    pdf_converter_FastAPI_app/templates \
-                    build/app/
+    //             # Build app zip
+    //             cp -r pdf_converter_FastAPI_app/main.py \
+    //                 pdf_converter_FastAPI_app/database.py \
+    //                 pdf_converter_FastAPI_app/models.py \
+    //                 pdf_converter_FastAPI_app/utils.py \
+    //                 pdf_converter_FastAPI_app/templates \
+    //                 build/app/
                 
-                cd build/app && zip -r ../../$APP_ZIP . && cd ../..
+    //             cd build/app && zip -r ../../$APP_ZIP . && cd ../..
 
-                # Build dependencies layer zip
-                pip install -r pdf_converter_FastAPI_app/requirements.txt -t build/dependencies/python/
-                cd build/dependencies && zip -r ../../$LAYER_ZIP . && cd ../..
+    //             # Build dependencies layer zip
+    //             pip install -r pdf_converter_FastAPI_app/requirements.txt -t build/dependencies/python/
+    //             cd build/dependencies && zip -r ../../$LAYER_ZIP . && cd ../..
 
-                # Change OwnerShip of the zip files
-                chown ${hostUserId}:${hostGroupId} $APP_ZIP
-                chown ${hostUserId}:${hostGroupId} $LAYER_ZIP
-                '''
+    //             # Change OwnerShip of the zip files
+    //             chown ${hostUserId}:${hostGroupId} $APP_ZIP
+    //             chown ${hostUserId}:${hostGroupId} $LAYER_ZIP
+    //             '''
 
-                // Pass the zip files to the next stage
-                stash includes: "${APP_ZIP}", name: 'app-code'
-                stash includes: "${LAYER_ZIP}", name: 'dependencies-layer'
-            }
-        }
+    //             // Pass the zip files to the next stage
+    //             stash includes: "${APP_ZIP}", name: 'app-code'
+    //             stash includes: "${LAYER_ZIP}", name: 'dependencies-layer'
+    //         }
+    //     }
 
 
-        // Stage 6: Deploy using Terraform.
-        stage('Terraform Deploy') {
-            agent {
-                docker {
-                    image 'hashicorp/terraform:1.5.7'
-                    args '--user 0 --entrypoint="" --dns 8.8.8.8'
-                }
-            }
-            steps {
-                script {
-                    withCredentials([
-                        string(credentialsId: 'AWS_ACCESS_KEY_ID', variable: 'AWS_ACCESS_KEY_ID'),
-                        string(credentialsId: 'AWS_SECRET_ACCESS_KEY', variable: 'AWS_SECRET_ACCESS_KEY')
-                    ]) {
+    //     // Stage 6: Deploy using Terraform.
+    //     stage('Terraform Deploy') {
+    //         agent {
+    //             docker {
+    //                 image 'hashicorp/terraform:1.5.7'
+    //                 args '--user 0 --entrypoint="" --dns 8.8.8.8'
+    //             }
+    //         }
+    //         steps {
+    //             script {
+    //                 withCredentials([
+    //                     string(credentialsId: 'AWS_ACCESS_KEY_ID', variable: 'AWS_ACCESS_KEY_ID'),
+    //                     string(credentialsId: 'AWS_SECRET_ACCESS_KEY', variable: 'AWS_SECRET_ACCESS_KEY')
+    //                 ]) {
 
-                        // Get the zip files from the previous stage
-                        unstash 'app-code'
-                        unstash 'dependencies-layer'
+    //                     // Get the zip files from the previous stage
+    //                     unstash 'app-code'
+    //                     unstash 'dependencies-layer'
 
-                        dir(env.TF_PATH) {
+    //                     dir(env.TF_PATH) {
 
-                            echo 'Installing Python & Dependencies in Terraform Environment...'
-                            sh 'apk add --no-cache python3 py3-pip coreutils'
-                            sh 'pip install awscli'
+    //                         echo 'Installing Python & Dependencies in Terraform Environment...'
+    //                         sh 'apk add --no-cache python3 py3-pip coreutils'
+    //                         sh 'pip install awscli'
 
-                            def fileHashApp = sh(returnStdout: true, script: "sha256sum ${APP_ZIP} | awk '{print \$1}'").trim()
-                            def fileHashLayer = sh(returnStdout: true, script: "sha256sum ${LAYER_ZIP} | awk '{print \$1}'").trim()
+    //                         def fileHashApp = sh(returnStdout: true, script: "sha256sum ${APP_ZIP} | awk '{print \$1}'").trim()
+    //                         def fileHashLayer = sh(returnStdout: true, script: "sha256sum ${LAYER_ZIP} | awk '{print \$1}'").trim()
 
-                            echo "${fileHashApp}"
-                            echo "${fileHashLayer}"
+    //                         echo "${fileHashApp}"
+    //                         echo "${fileHashLayer}"
 
-                            // Copying the zip files to the S3_BUCKET
-                            echo 'Copying the zip files to the AWS_S3_BUCKET...'
-                            sh "aws s3 cp ${APP_ZIP} s3://${S3_BUCKET}/"
-                            sh "aws s3 cp ${LAYER_ZIP} s3://${S3_BUCKET}/"
+    //                         // Copying the zip files to the S3_BUCKET
+    //                         echo 'Copying the zip files to the AWS_S3_BUCKET...'
+    //                         sh "aws s3 cp ${APP_ZIP} s3://${S3_BUCKET}/"
+    //                         sh "aws s3 cp ${LAYER_ZIP} s3://${S3_BUCKET}/"
 
-                            // Create Dynamodb only for first time to run pipeline...
-                            // To run it first_time uncomment it...
+    //                         // Create Dynamodb only for first time to run pipeline...
+    //                         // To run it first_time uncomment it...
                              
-                            // Create Dynamodb_Table for Terraform state locking
-                            // echo 'Creating Dynamodb_Table for Terraform state locking...'
-                            // sh """
-                            //     aws dynamodb create-table \
-                            //     --table-name terraform-state-lock-table \
-                            //     --attribute-definitions AttributeName=LockID,AttributeType=S \
-                            //     --key-schema AttributeName=LockID,KeyType=HASH \
-                            //     --provisioned-throughput ReadCapacityUnits=5,WriteCapacityUnits=5
-                            // """
-                            // Initializing Terraform
-                            echo 'Initializing Terraform...'
-                            // sh 'terraform init -migrate-state'
-                            // sh 'terraform init -reconfigure'
-                            sh 'terraform init -upgrade'
-                            sh """
-                                terraform apply -auto-approve \
-                                -var 's3_key_app=${APP_ZIP}' \
-                                -var 'source_code_hash_app=${fileHashApp}' \
-                                -var 's3_key_layer=${LAYER_ZIP}' \
-                                -var 'source_code_hash_layer=${fileHashLayer}' \
-                                -var 'libreoffice_layer_arn=${LAYER_VERSION_ARN}'
-                            """
-                        }
-                    }
-                }
-            }
-        }
+    //                         // Create Dynamodb_Table for Terraform state locking
+    //                         // echo 'Creating Dynamodb_Table for Terraform state locking...'
+    //                         // sh """
+    //                         //     aws dynamodb create-table \
+    //                         //     --table-name terraform-state-lock-table \
+    //                         //     --attribute-definitions AttributeName=LockID,AttributeType=S \
+    //                         //     --key-schema AttributeName=LockID,KeyType=HASH \
+    //                         //     --provisioned-throughput ReadCapacityUnits=5,WriteCapacityUnits=5
+    //                         // """
+    //                         // Initializing Terraform
+    //                         echo 'Initializing Terraform...'
+    //                         // sh 'terraform init -migrate-state'
+    //                         // sh 'terraform init -reconfigure'
+    //                         sh 'terraform init -upgrade'
+    //                         sh """
+    //                             terraform apply -auto-approve \
+    //                             -var 's3_key_app=${APP_ZIP}' \
+    //                             -var 'source_code_hash_app=${fileHashApp}' \
+    //                             -var 's3_key_layer=${LAYER_ZIP}' \
+    //                             -var 'source_code_hash_layer=${fileHashLayer}' \
+    //                             -var 'libreoffice_layer_arn=${LAYER_VERSION_ARN}'
+    //                         """
+    //                     }
+    //                 }
+    //             }
+    //         }
+    //     }
 
         
-        // Stage 7: Post-deployment information.
-        stage('Post-Deployment Info') {
-            agent {
-                docker {
-                    image 'hashicorp/terraform:1.5.7'
-                    args '--user 0 --entrypoint="" --dns 8.8.8.8'
-                }
-            }
-            steps {
-                script {
-                    withCredentials([
-                        string(credentialsId: 'AWS_ACCESS_KEY_ID', variable: 'AWS_ACCESS_KEY_ID'),
-                        string(credentialsId: 'AWS_SECRET_ACCESS_KEY', variable: 'AWS_SECRET_ACCESS_KEY')
-                    ]) {
-                        dir(env.TF_PATH) {
-                            def apiGatewayUrl = sh(returnStdout: true, script: 'terraform output -raw api_gateway_url').trim()
-                            echo "Deployment Complete! Your API Gateway URL: ${apiGatewayUrl}"
-                        }
-                    }
-                }
-            }
-        }
-    }
+    //     // Stage 7: Post-deployment information.
+    //     stage('Post-Deployment Info') {
+    //         agent {
+    //             docker {
+    //                 image 'hashicorp/terraform:1.5.7'
+    //                 args '--user 0 --entrypoint="" --dns 8.8.8.8'
+    //             }
+    //         }
+    //         steps {
+    //             script {
+    //                 withCredentials([
+    //                     string(credentialsId: 'AWS_ACCESS_KEY_ID', variable: 'AWS_ACCESS_KEY_ID'),
+    //                     string(credentialsId: 'AWS_SECRET_ACCESS_KEY', variable: 'AWS_SECRET_ACCESS_KEY')
+    //                 ]) {
+    //                     dir(env.TF_PATH) {
+    //                         def apiGatewayUrl = sh(returnStdout: true, script: 'terraform output -raw api_gateway_url').trim()
+    //                         echo "Deployment Complete! Your API Gateway URL: ${apiGatewayUrl}"
+    //                     }
+    //                 }
+    //             }
+    //         }
+    //     }
+    // }
 
     post {
         always { echo 'Cleaning up...' }

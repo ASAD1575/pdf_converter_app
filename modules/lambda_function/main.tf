@@ -90,7 +90,7 @@ resource "aws_iam_role_policy" "lambda_s3_access" {
 resource "aws_lambda_function" "pdf_converter_app" {
   function_name = var.function_name
   package_type  = "Image"
-  image_uri     = "${aws_ecr_repository.app_repo.repository_url}:latest"
+  image_uri     = "${"375299695019.dkr.ecr.us-east-1.amazonaws.com/pdf_app_repo"}:latest"
   # handler       = "main.handler"              # FAST API wrapped by Mangum
   # runtime       = "python3.12" 
   role          = aws_iam_role.lambda_exec_role.arn
@@ -99,7 +99,7 @@ resource "aws_lambda_function" "pdf_converter_app" {
 
   # Code from S3
   s3_bucket         = var.s3_bucket_name
-  s3_key            = var.s3_key_app
+  # s3_key            = var.s3_key_app
   # source_code_hash  = var.source_code_hash_app
 
   # VPC Configuration (to access RDS)

@@ -85,9 +85,9 @@ module "lambda_function" {
   
   # S3 (Code and Layer Sources)
   s3_bucket_name      = "pdflambdabucket1575"
-  s3_key_app          =  var.s3_key_app
+  # s3_key_app          =  var.s3_key_app
   # s3_key_layer        = var.s3_key_layer
-
+  
   # Ensures Terraform detects zip changes
   # source_code_hash_app = var.source_code_hash_app
   # source_code_hash_layer = var.source_code_hash_layer

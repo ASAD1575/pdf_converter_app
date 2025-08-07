@@ -70,9 +70,9 @@ variable "s3_bucket_name" {
 #   type        = string
 # }
 
-variable "s3_key_app" {
-  type = string
-}
+# variable "s3_key_app" {
+#   type = string
+# }
 
 # variable "s3_key_layer" {
 #   type = string

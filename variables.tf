@@ -1,6 +1,6 @@
-variable "s3_key_app" {
-  type = string
-}
+# variable "s3_key_app" {
+#   type = string
+# }
 
 # variable "source_code_hash_app" {
 #   type = string

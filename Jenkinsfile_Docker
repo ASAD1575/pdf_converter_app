@@ -177,6 +177,28 @@ pipeline {
    
     stages {
         
+        stage('Terraform Init') {
+            agent {
+                docker {
+                    image 'hashicorp/terraform:1.5.7'
+                    args '--user 0 --entrypoint="" --dns 8.8.8.8'
+                }
+            }
+            steps {
+                script {
+                    withCredentials([
+                        string(credentialsId: 'AWS_ACCESS_KEY_ID', variable: 'AWS_ACCESS_KEY_ID'),
+                        string(credentialsId: 'AWS_SECRET_ACCESS_KEY', variable: 'AWS_SECRET_ACCESS_KEY')
+                    ]) {
+                        sh """
+                            terraform init -upgrade
+                            terraform init -auto-approve
+                        """
+                    }
+                }
+            }
+        }
+
         stage('Logging into AWS ECR') {
             steps {
                 script {
@@ -207,28 +229,6 @@ pipeline {
                 script {
                     sh "docker tag ${IMAGE_REPO_NAME}:${IMAGE_TAG} ${REPOSITORY_URI}:$IMAGE_TAG"
                     sh "docker push ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_DEFAULT_REGION}.amazonaws.com/${IMAGE_REPO_NAME}:${IMAGE_TAG}"
-                }
-            }
-        }
-    
-        stage('Terraform Init') {
-            agent {
-                docker {
-                    image 'hashicorp/terraform:1.5.7'
-                    args '--user 0 --entrypoint="" --dns 8.8.8.8'
-                }
-            }
-            steps {
-                script {
-                    withCredentials([
-                        string(credentialsId: 'AWS_ACCESS_KEY_ID', variable: 'AWS_ACCESS_KEY_ID'),
-                        string(credentialsId: 'AWS_SECRET_ACCESS_KEY', variable: 'AWS_SECRET_ACCESS_KEY')
-                    ]) {
-                        sh """
-                            terraform init -upgrade
-                            terraform init -auto-approve
-                        """
-                    }
                 }
             }
         }

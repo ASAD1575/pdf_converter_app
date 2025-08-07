@@ -7,14 +7,14 @@ terraform {
   }
 }
 
-resource "aws_ecr_repository" "app_repo" {
-  name                 = "${var.app_name}-repo"
-  image_tag_mutability = "MUTABLE"
+# resource "aws_ecr_repository" "app_repo" {
+#   name                 = "${var.app_name}-repo"
+#   image_tag_mutability = "MUTABLE"
 
-  tags = {
-    Name = "${var.app_name}-repo"
-  }
-}
+#   tags = {
+#     Name = "${var.app_name}-repo"
+#   }
+# }
 
 # Create DynamoDB Table for State Locking
 # resource "aws_dynamodb_table" "terraform-state-lock-table" {
@@ -72,9 +72,7 @@ module "lambda_function" {
   function_name             = "pdfconverter"
   private_subnet_ids        = module.vpc.private_subnet_ids
   app_security_group_id     = module.security_group.app_security_group_id
-  app_name                  = "pdf-converter"
   secret_key                = var.secret_key
-  
   # Layers
   # libreoffice_layer_arn     = "arn:aws:lambda:us-east-1:764866452798:layer:libreoffice-brotli:1"
   

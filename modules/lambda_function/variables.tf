@@ -19,13 +19,13 @@ variable "app_security_group_id" {
   type        = string
 }
 
-# variable "libreoffice_layer_arn" {
-#   description = "The ARN of the LibreOffice Lambda Layer for your region and runtime."
-#   type        = string
-#   # Example: "arn:aws:lambda:eu-north-1:764866452813:layer:libreoffice-brotli:X"
-#   # You need to find the correct ARN for your region and the latest version.
-#   # This layer is crucial for the 'libreoffice' command to work within Lambda.
-# }
+variable "libreoffice_layer_arn" {
+  description = "The ARN of the LibreOffice Lambda Layer for your region and runtime."
+  type        = string
+  # Example: "arn:aws:lambda:eu-north-1:764866452813:layer:libreoffice-brotli:X"
+  # You need to find the correct ARN for your region and the latest version.
+  # This layer is crucial for the 'libreoffice' command to work within Lambda.
+}
 
 # Database connection environment variables
 variable "db_host" {
@@ -60,27 +60,27 @@ variable "s3_bucket_name" {
   type = string
 }
 
-# variable "source_code_hash_app" {
-#   description = "The base64-encoded SHA256 hash of the Lambda function's deployment package."
-#   type        = string
-# }
+variable "source_code_hash_app" {
+  description = "The base64-encoded SHA256 hash of the Lambda function's deployment package."
+  type        = string
+}
 
-# variable "source_code_hash_layer" {
-#   description = "The base64-encoded SHA256 hash of the Lambda function's layer package."
-#   type        = string
-# }
+variable "source_code_hash_layer" {
+  description = "The base64-encoded SHA256 hash of the Lambda function's layer package."
+  type        = string
+}
 
-# variable "s3_key_app" {
-#   type = string
-# }
-
-# variable "s3_key_layer" {
-#   type = string
-# }
-
-variable "secret_key" {
+variable "s3_key_app" {
   type = string
 }
+
+variable "s3_key_layer" {
+  type = string
+}
+
+# variable "secret_key" {
+#   type = string
+# }
 
 # variable "app_name" {
 #   description = "The name of the application, used for naming resources."
@@ -89,6 +89,6 @@ variable "secret_key" {
   
 # }
 
-variable "image_uri" {
-  type = string
-}
+# variable "image_uri" {
+#   type = string
+# }

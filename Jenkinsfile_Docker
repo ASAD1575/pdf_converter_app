@@ -30,7 +30,7 @@ pipeline {
             agent {
                 docker {
                     image 'docker/compose:latest'
-                    args '--user 0 --entrypoint=""'
+                    args '--user 0 --entrypoint="" -v /var/run/docker.sock:/var/run/docker.sock'
                 }
             }
             steps {

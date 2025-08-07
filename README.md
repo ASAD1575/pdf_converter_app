@@ -22,45 +22,25 @@ The project is organized with a clear separation of concerns.
 
 .
 ├── modules/
-
 │   ├── api_gateway/
-
 │   ├── cloudwatch/
-
 │   ├── lambda_function/
-
 │   ├── rds/
-
 │   ├── s3/
-
 │   ├── security_group/
-
 │   └── vpc/
-
 ├── pdf_converter_FastAPI_app/
-
 │   ├── templates/
-
 │   ├── uploads/
-
 │   ├── database.py
-
 │   ├── main.py
-
 │   ├── models.py
-
 │   ├── requirements.txt
-
 │   └── utils.py
-
 ├── .gitignore
-
 ├── Jenkinsfile_Docker
-
 ├── main.tf
-
 ├── outputs.tf
-
 └── variables.tf
 
 

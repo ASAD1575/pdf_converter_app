@@ -36,9 +36,11 @@ pipeline {
 
         // Stage 2: Build the Lambda layer using docker-compose.
         stage('Build Layer') {
-            docker {
-                image 'docker/compose:latest'
-                args '--user 0 --entrypoint=""'
+            agent {
+                docker {
+                    image 'docker/compose:latest'
+                    args '--user 0 --entrypoint=""'
+                }
             }
             steps {
                 echo 'Building Lambda layer with Docker...'
@@ -54,13 +56,13 @@ pipeline {
 
         // Stage 3: Publish the layer to AWS Lambda.
         stage('Publish Lambda Layer') {
-            steps {
-                agent {
-                    docker {
-                        image 'amazon/aws-cli:latest'
-                        args '--user 0 --entrypoint=""'
-                    }
+            agent {
+                docker {
+                    image 'amazon/aws-cli:latest'
+                    args '--user 0 --entrypoint=""'
                 }
+            }
+            steps {
                 script {
                     withCredentials([
                         string(credentialsId: 'AWS_ACCESS_KEY_ID', variable: 'AWS_ACCESS_KEY_ID'),
@@ -90,6 +92,13 @@ pipeline {
 
         // Stage 4: Upload the artifact to S3.
         stage('Upload to S3') {
+            agent {
+                docker {
+                    image 'amazon/aws-cli:latest'
+                    args '--user 0 --entrypoint=""'
+                }
+            }
+
             // This 'withCredentials' block securely uses the AWS credentials configured in Jenkins.
             steps {
                 echo 'Uploading artifact to S3...'

@@ -45,11 +45,11 @@ pipeline {
             steps {
                 echo 'Building Lambda layer with Docker...'
                 // Navigates to the libreoffice-lambda-layer directory.
-                dir('libreoffice-lambda-layer') {
-                    // This command uses the docker-compose file in the repo to build the layer.
-                    // It creates a zip file named 'layers.zip' in the current directory.
-                    sh 'docker-compose run --rm --entrypoint="sh /build-libreoffice-layer.sh" build'
-                }
+                
+                // This command uses the docker-compose file in the repo to build the layer.
+                // It creates a zip file named 'layers.zip' in the current directory.
+                sh 'docker-compose run --rm --entrypoint="sh /build-libreoffice-layer.sh" build'
+                
             }
         }
         

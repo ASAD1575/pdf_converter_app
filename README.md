@@ -1,10 +1,13 @@
-Serverless PDF Converter with FastAPI and Jenkins CI/CD
+Serverless PDF Converter with FastAPI and Jenkins CI/CD:
+
 This repository contains the infrastructure and application code for a serverless PDF converter, built with FastAPI and deployed on AWS. The project utilizes a modular Terraform structure for infrastructure management and a Jenkins pipeline for continuous integration and continuous deployment (CI/CD).
 
-🚀 Project Overview
+🚀 Project Overview:
+
 The core functionality is a FastAPI application that converts documents (e.g., DOCX, XLSX) into PDFs. This application runs on AWS Lambda. To handle the document conversion, a custom AWS Lambda Layer is created that includes a full installation of LibreOffice. The entire CI/CD process is automated using a Jenkins pipeline.
 
 Key Components:
+
 FastAPI Application (pdf_converter_FastAPI_app): The main application logic for document conversion.
 
 Modular Terraform: Infrastructure as Code (IaC) is managed using a modular approach to logically separate different AWS resources.
@@ -13,33 +16,56 @@ Jenkins Pipeline (Jenkinsfile): Automates the build, deployment, and update proc
 
 LibreOffice Lambda Layer: A custom AWS Lambda layer containing LibreOffice to enable document conversion within the Lambda environment.
 
-📁 File Structure
+📁 File Structure:
+
 The project is organized with a clear separation of concerns.
 
 .
 ├── modules/
+
 │   ├── api_gateway/
+
 │   ├── cloudwatch/
+
 │   ├── lambda_function/
+
 │   ├── rds/
+
 │   ├── s3/
+
 │   ├── security_group/
+
 │   └── vpc/
+
 ├── pdf_converter_FastAPI_app/
+
 │   ├── templates/
+
 │   ├── uploads/
+
 │   ├── database.py
+
 │   ├── main.py
+
 │   ├── models.py
+
 │   ├── requirements.txt
+
 │   └── utils.py
+
 ├── .gitignore
+
 ├── Jenkinsfile_Docker
+
 ├── main.tf
+
 ├── outputs.tf
+
 └── variables.tf
 
-🏗️ Modular Terraform
+
+🏗️ Modular Terraform:
+
 The Terraform configuration is organized into modules to promote reusability and maintainability. The main.tf file in the root directory ties all these modules together.
 
 modules/api_gateway: Defines the API Gateway resources to expose the Lambda function via an HTTP endpoint.
@@ -62,7 +88,8 @@ variables.tf: Contains all the variables for the root module.
 
 outputs.tf: Defines the output values (like the API Gateway URL) that can be easily retrieved after deployment.
 
-⚙️ Jenkins CI/CD Pipeline
+⚙️ Jenkins CI/CD Pipeline:
+
 The Jenkinsfile orchestrates the entire deployment process. This pipeline is designed to automatically build the application and its dependencies, publish the LibreOffice layer, and deploy the entire infrastructure with Terraform.
 
 Stages:
@@ -80,7 +107,8 @@ Terraform Deploy: This is the final deployment stage. It un-stashes the applicat
 
 Post-Deployment Info: After a successful deployment, this stage retrieves the API Gateway URL from the Terraform outputs and prints it to the Jenkins console.
 
-🚀 Getting Started
+🚀 Getting Started:
+
 Clone the Repository:
 git clone <https://github.com/ASAD1575/pdf_converter_app.git>
 

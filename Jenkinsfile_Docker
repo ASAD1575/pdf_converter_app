@@ -155,11 +155,12 @@ pipeline {
                     // This command publishes a new version of the layer from the zip file.
                     // The output is a JSON object which we need to parse.
                     // The 'dir' block is used here to ensure the command is run from the correct directory.
-                    
+                    sh "aws s3 cp ${ARTIFACT_NAME} s3://${S3_BUCKET}/${ARTIFACT_NAME} --acl private"
+
                     def output = sh(returnStdout: true, script:
                         "aws lambda publish-layer-version " +
                         "--layer-name ${LAYER_NAME} " +
-                        "--zip-file fileb://${ARTIFACT_NAME} " +
+                        "--content S3Bucket=${S3_BUCKET},S3Key=${ARTIFACT_NAME} " +
                         "--compatible-runtimes python3.7 python3.8 python3.9 python3.10 " +
                         "--query 'LayerVersionArn' --output text"
                     ).trim()
@@ -172,28 +173,28 @@ pipeline {
             }
         }
 
-        // Stage 3: Upload the artifact to S3.
-        stage('Upload to S3') {
-            agent {
-                docker {
-                    image 'amazon/aws-cli:latest'
-                    args '--user 0 --entrypoint=""'
-                }
-            }
+        // // Stage 3: Upload the artifact to S3.
+        // stage('Upload to S3') {
+        //     agent {
+        //         docker {
+        //             image 'amazon/aws-cli:latest'
+        //             args '--user 0 --entrypoint=""'
+        //         }
+        //     }
 
-            // This 'withCredentials' block securely uses the AWS credentials configured in Jenkins.
-            steps {
-                echo 'Uploading artifact to S3...'
-                withCredentials([
-                        string(credentialsId: 'AWS_ACCESS_KEY_ID', variable: 'AWS_ACCESS_KEY_ID'),
-                        string(credentialsId: 'AWS_SECRET_ACCESS_KEY', variable: 'AWS_SECRET_ACCESS_KEY')
-                    ]) {
-                    // Uses the AWS CLI to copy the file to S3.
-                    // The --acl private flag ensures the file isn't publicly accessible by default.
-                    sh "aws s3 cp ${ARTIFACT_NAME} s3://${S3_BUCKET}/${ARTIFACT_NAME} --acl private"
-                }
-            }
-        }
+        //     // This 'withCredentials' block securely uses the AWS credentials configured in Jenkins.
+        //     steps {
+        //         echo 'Uploading artifact to S3...'
+        //         withCredentials([
+        //                 string(credentialsId: 'AWS_ACCESS_KEY_ID', variable: 'AWS_ACCESS_KEY_ID'),
+        //                 string(credentialsId: 'AWS_SECRET_ACCESS_KEY', variable: 'AWS_SECRET_ACCESS_KEY')
+        //             ]) {
+        //             // Uses the AWS CLI to copy the file to S3.
+        //             // The --acl private flag ensures the file isn't publicly accessible by default.
+        //             sh "aws s3 cp ${ARTIFACT_NAME} s3://${S3_BUCKET}/${ARTIFACT_NAME} --acl private"
+        //         }
+        //     }
+        // }
 
         // Stage 4: Build the Lambda packages.
         stage('Build Lambda Packages') {

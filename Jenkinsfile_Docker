@@ -30,7 +30,7 @@ pipeline {
             agent {
                 docker {
                     // Use a standard Python image. We will install LibreOffice ourselves.
-                    image 'python:3.9-slim'
+                    image 'docker/compose:latest'
                     args '--user 0 --entrypoint=""'
                 }
             }
@@ -48,9 +48,7 @@ pipeline {
                 // Download a known-good LibreOffice binary for Lambda.
                 // This is a direct, reliable method that avoids Docker Hub pull issues.
                 sh '''
-                    wget -q https://github.com/vladholubiev/serverless-libreoffice/releases/download/v0.3.0/libreoffice.zip
-                    unzip libreoffice.zip
-                    rm libreoffice.zip
+                    docker-compose run --rm libreoffice
                 '''
                 
                 // Package the downloaded files into the correct directory structure.

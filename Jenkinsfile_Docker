@@ -125,7 +125,10 @@ pipeline {
                     fi
                     echo "---------------------------------------------------"
                 '''
-                //  Now, stash the file from the parent directory.
+                sh 'ls -l libreoffice-layer.zip'
+                // Add this line to move the zip file to the root of the workspace.
+                sh 'mv LibreOffice_7.4.6.2_Linux-x86-64_deb/DEBS/libreoffice-layer.zip .'
+                // The stash command will now work correctly.
                 stash includes: 'libreoffice-layer.zip', name: 'libreoffice-layer'
                 
             }

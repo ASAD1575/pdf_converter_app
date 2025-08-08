@@ -149,31 +149,34 @@ pipeline {
                         string(credentialsId: 'AWS_ACCESS_KEY_ID', variable: 'AWS_ACCESS_KEY_ID'),
                         string(credentialsId: 'AWS_SECRET_ACCESS_KEY', variable: 'AWS_SECRET_ACCESS_KEY')
                     ]) {
-                    
-                    unstash 'libreoffice-layer'
-                    echo 'Publishing new Lambda layer version...'
-                    // This command publishes a new version of the layer from the zip file.
-                    // The output is a JSON object which we need to parse.
-                    // The 'dir' block is used here to ensure the command is run from the correct directory.
-                    sh "aws s3 cp ${ARTIFACT_NAME} s3://${S3_BUCKET}/${ARTIFACT_NAME} --acl private"
+                        echo 'Uploading layer artifact to S3...'
+                        sh "aws s3 cp ${ARTIFACT_NAME} s3://${S3_BUCKET}/${ARTIFACT_NAME} --acl private"
 
-                    def output = sh(returnStdout: true, script:
-                        "aws lambda publish-layer-version " +
-                        "--layer-name ${LAYER_NAME} " +
-                        "--content S3Bucket=${S3_BUCKET},S3Key=${ARTIFACT_NAME} " +
-                        "--compatible-runtimes python3.7 python3.8 python3.9 python3.10 " +
-                        "--query 'LayerVersionArn' --output text"
-                    ).trim()
-
-                    // Validate that the ARN was captured successfully
-                    if (env.LAYER_VERSION_ARN == null || env.LAYER_VERSION_ARN.isEmpty()) {
-                        error("Failed to retrieve the Lambda layer ARN. The AWS CLI command returned no output.")
-                    }
-                    
-                    echo "Successfully published layer version with ARN: ${env.LAYER_VERSION_ARN}"
-                    
-                    stash includes: "${ARTIFACT_NAME}", name: 'libreoffice-layer-zip'
+                        echo 'Publishing new Lambda layer version from S3 and capturing ARN...'
                         
+                        try {
+                            // Attempt to get the ARN and assign it to the environment variable.
+                            env.LAYER_VERSION_ARN = sh(returnStdout: true, script: """
+                                aws lambda publish-layer-version \
+                                    --layer-name ${LAYER_NAME} \
+                                    --content S3Bucket=${S3_BUCKET},S3Key=${ARTIFACT_NAME} \
+                                    --compatible-runtimes python3.7 python3.8 python3.9 python3.10 \
+                                    --query 'LayerVersionArn' \
+                                    --output text
+                            """).trim()
+                        } catch (Exception e) {
+                            // If the sh command fails, the try-catch block will execute.
+                            error("The AWS CLI command to publish the layer failed. The pipeline will stop.")
+                        }
+
+                        // This is the safety check to make sure the variable has a value.
+                        if (env.LAYER_VERSION_ARN == null || env.LAYER_VERSION_ARN.isEmpty()) {
+                            error("Failed to retrieve the Lambda layer ARN. The AWS CLI command returned no output, even after a successful command execution.")
+                        }
+
+                        echo "Successfully published layer version with ARN: ${env.LAYER_VERSION_ARN}"
+
+                        stash includes: "${ARTIFACT_NAME}", name: 'libreoffice-layer-zip'
                     }
                 }
             }

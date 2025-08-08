@@ -29,8 +29,8 @@ pipeline {
         stage('Checkout & Build') {
             agent {
                 docker {
-                    // Use a pre-built image that contains LibreOffice, which is much faster.
-                    image 'vladholubiev/libreoffice-lambda-layer:latest'
+                    // Use a publicly available image that contains LibreOffice.
+                    image 'xtraeme/libreoffice-lambda:latest'
                     args '--user 0 --entrypoint="" -v /var/run/docker.sock:/var/run/docker.sock'
                 }
             }
@@ -41,9 +41,15 @@ pipeline {
 
                 // Build the LibreOffice layer using the pre-built Docker image.
                 echo 'Building Lambda layer with Docker...'
-                // This command creates the LibreOffice layer ZIP file by running a script inside the container.
-                // It mounts the current directory as a volume to save the output file.
-                sh "docker run --rm -v \$(pwd):/var/task vladholubiev/libreoffice-lambda-layer:latest bash -c 'sh /build-libreoffice-layer.sh'"
+                // This command creates a temporary container, copies the pre-installed LibreOffice files,
+                // and then zips them into a file called `libreoffice.zip`. This is much faster than installing.
+                sh '''
+                    docker create --name libreoffice-temp xtraeme/libreoffice-lambda:latest
+                    docker cp libreoffice-temp:/opt/libreoffice-bin-7.1/ .
+                    docker rm libreoffice-temp
+                    zip -r libreoffice.zip libreoffice-bin-7.1/
+                '''
+
                 sh 'ls -lh libreoffice.zip'
 
                 // The original script used libreoffice-lambda-layer/layers.zip.

@@ -36,15 +36,14 @@ pipeline {
                 }
             }
             steps {
+                echo 'Installing required tools in the container...'
+                sh 'apt-get update && apt-get install -y curl tar zip binutils xz-utils'
+                
                 echo 'Downloading LibreOffice .deb packages archive...'
-                sh 'apt-get update && apt-get install -y curl tar zip'
                 sh 'curl -L -o LibreOffice_deb.tar.gz "https://downloadarchive.documentfoundation.org/libreoffice/old/7.4.6.2/deb/x86_64/LibreOffice_7.4.6.2_Linux_x86-64_deb.tar.gz"'
 
                 echo 'Extracting the archive...'
                 sh 'tar -zxvf LibreOffice_deb.tar.gz'
-
-                echo 'Installing required tools in the container...'
-                sh 'apt-get update && apt-get install -y binutils zip'
 
                 echo 'Starting the layer build script...'
                 sh '''#!/bin/bash

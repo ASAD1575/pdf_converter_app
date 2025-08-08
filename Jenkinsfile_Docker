@@ -167,6 +167,7 @@ pipeline {
                     // Set the environment variable with the ARN of the newly published layer version.
                     env.LAYER_VERSION_ARN = output
                     echo "Published layer version ARN: ${env.LAYER_VERSION_ARN}"
+                    stash includes: "${ARTIFACT_NAME}", name: 'libreoffice-layer-zip'
                         
                     }
                 }
@@ -200,7 +201,7 @@ pipeline {
         stage('Build Lambda Packages') {
             agent {
                 docker {
-                    image 'python:3.12-slim'
+                    image 'python:3.9-slim'
                     args '--user 0 --entrypoint=""'
                 }
             }
@@ -257,6 +258,7 @@ pipeline {
                         // Get the zip files from the previous stage
                         unstash 'app-code'
                         unstash 'dependencies-layer'
+                        unstash 'libreoffice-layer-zip'
 
                         dir(env.TF_PATH) {
 
@@ -274,6 +276,7 @@ pipeline {
                             echo 'Copying the zip files to the AWS_S3_BUCKET...'
                             sh "aws s3 cp ${APP_ZIP} s3://${S3_BUCKET}/"
                             sh "aws s3 cp ${LAYER_ZIP} s3://${S3_BUCKET}/"
+                            sh "aws s3 cp ${ARTIFACT_NAME} s3://${S3_BUCKET}/"
 
                             // Create Dynamodb only for first time to run pipeline...
                             // To run it first_time uncomment it...

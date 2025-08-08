@@ -25,26 +25,31 @@ pipeline {
             }
         }
 
-        // Stage 1: Checkout the Git repository.
+        // Stage 1: Checkout the Git repository and build the LibreOffice layer.
         stage('Checkout & Build') {
             agent {
                 docker {
-                    image 'docker/compose:latest'
+                    // Use a pre-built image that contains LibreOffice, which is much faster.
+                    image 'vladholubiev/libreoffice-lambda-layer:latest'
                     args '--user 0 --entrypoint="" -v /var/run/docker.sock:/var/run/docker.sock'
                 }
             }
             steps {
                 echo 'Cloning Git repository...'
-
-                // Clones the specified repository.
+                // Clones the specified repository to get the rest of your app code.
                 git url: 'https://github.com/vladholubiev/serverless-libreoffice.git', branch: 'master'
-                sh 'ls -l'
-                sh 'docker-compose config --services'
 
-                // Building the Docker image for the LibreOffice Lambda layer.
+                // Build the LibreOffice layer using the pre-built Docker image.
                 echo 'Building Lambda layer with Docker...'
-                sh 'docker-compose run --rm --entrypoint="sh /build-libreoffice-layer.sh" libreoffice'
-                sh 'ls -lh libreoffice-lambda-layer/'
+                // This command creates the LibreOffice layer ZIP file by running a script inside the container.
+                // It mounts the current directory as a volume to save the output file.
+                sh "docker run --rm -v $(pwd):/var/task vladholubiev/libreoffice-lambda-layer:latest bash -c 'sh /build-libreoffice-layer.sh'"
+                sh 'ls -lh libreoffice.zip'
+
+                // The original script used libreoffice-lambda-layer/layers.zip.
+                // We're renaming the file for consistency with the rest of your pipeline.
+                sh 'mv -rf libreoffice.zip libreoffice-lambda-layer/'
+                sh 'mv -rf libreoffice-lambda-layer/libreoffice.zip libreoffice-lambda-layer/layers.zip'
             }
         }
         

@@ -440,7 +440,7 @@ s3_client = boto3.client("s3")
 
 # -------------------- LibreOffice Path --------------------
 # This path is correct for the Python 3.9 compatible layer provided previously.
-LIBREOFFICE_PATH = '/opt/libreoffice/program/soffice'
+LIBREOFFICE_PATH = '/opt/libreoffice/program/soffice' # /opt/lo/libreoffice/program/soffice
 
 # -------------------- Health Check for LibreOffice --------------------
 # This check is performed at cold start to ensure the path is valid.

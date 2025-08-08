@@ -1,35 +1,59 @@
-# --- STAGE 1: Build dependencies ---
-# Install LibreOffice and other necessary tools.
-# This stage installs LibreOffice and other large dependencies.
-FROM debian:bullseye-slim as build
+# Start with the Amazon Linux 2 base image to build the layer
+FROM amazonlinux:2
 
-# Install LibreOffice and other necessary tools.
-RUN apt-get update \
-    && apt-get install -y --no-install-recommends \
-        libreoffice \
-        unzip \
-        fonts-dejavu \
-    && apt-get clean \
-    && rm -rf /var/lib/apt/lists/*
+# The following is a fix for the CentOS 7 repository being unavailable
+# We'll use the vault.centos.org repository instead.
+RUN rm -f /etc/yum.repos.d/centos.repo
+RUN echo "[centos-vault]" > /etc/yum.repos.d/centos-vault.repo && \
+    echo "name=CentOS-7 Vault" >> /etc/yum.repos.d/centos-vault.repo && \
+    echo "baseurl=http://vault.centos.org/7.9.2009/os/x86_64/" >> /etc/yum.repos.d/centos-vault.repo && \
+    echo "gpgcheck=0" >> /etc/yum.repos.d/centos-vault.repo && \
+    echo "enabled=1" >> /etc/yum.repos.d/centos-vault.repo
 
-# --- STAGE 2: Final Lambda Image ---
+# Install necessary dependencies, including zip for packaging the layer
+RUN yum clean all && \
+    yum update -y && \
+    yum install -y \
+        gcc \
+        gcc-c++ \
+        make \
+        wget \
+        bzip2 \
+        libXrender \
+        cups-libs \
+        libXext \
+        libXrandr \
+        libXt \
+        libXtst \
+        libXv \
+        libXxf86vm \
+        libXinerama \
+        libXft \
+        liblangtag \
+        pango \
+        cairo \
+        fontconfig \
+        mesa-libGLU \
+        liberation-fonts \
+        dejavu-sans-fonts \
+        dejavu-serif-fonts \
+        ghostscript \
+        zip
 
-FROM public.ecr.aws/lambda/python:3.10
+# Download and install a newer, stable version of LibreOffice from a direct link
+RUN wget https://downloadarchive.documentfoundation.org/libreoffice/old/7.6.7.2/rpm/x86_64/LibreOffice_7.6.7.2_Linux_x86-64_rpm.tar.gz -O /tmp/libreoffice.tar.gz
+RUN tar -xzf /tmp/libreoffice.tar.gz -C /opt
+RUN rpm -Uvh /opt/LibreOffice_7.6.7.2_Linux_x86-64_rpm/RPMS/*.rpm --nodeps
 
-# Set the working directory for the application code.
-WORKDIR /var/task
+# Set up the environment for the Lambda layer
+ENV PATH=/opt/libreoffice7.6/program:$PATH
 
-# Copy the LibreOffice installation from the build stage.
-COPY --from=build /usr/bin/libreoffice /usr/bin/libreoffice
-COPY --from=build /usr/lib/libreoffice /usr/lib/libreoffice
-COPY --from=build /usr/share/fonts /usr/share/fonts
-COPY --from=build /usr/share/libreoffice /usr/share/libreoffice
+# Create a directory to hold the final zipped layer
+RUN mkdir -p /layer/
+RUN mv /opt/libreoffice7.6 /layer/
 
-# The path is now relative to the root of your project.
-COPY pdf_converter_FastAPI_app/requirements.txt .
-RUN pip install -r requirements.txt --target .
+# Clean up
+RUN rm -rf /opt/LibreOffice_7.6.7.2_Linux_x86-64_rpm /tmp/libreoffice.tar.gz
 
-# Copy your entire application code directory into the image.
-COPY pdf_converter_FastAPI_app/ .
-
-CMD ["handler.handler"]
+# The CMD is changed to execute the build script
+CMD ["/build-libreoffice-layer.sh"]

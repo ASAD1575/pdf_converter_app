@@ -165,13 +165,15 @@ pipeline {
                         "--query 'LayerVersionArn' --output text"
                     ).trim()
 
-                    // Check if the output is an empty string
-                    if (output == null || output.isEmpty()) {
+                    // Validate that the ARN was captured successfully
+                    if (layerArn == null || layerArn.isEmpty()) {
                         error("Failed to retrieve the Lambda layer ARN. The AWS CLI command returned no output.")
                     }
-                        
-                    env.LAYER_VERSION_ARN = output
-                    echo "Published layer version ARN: ${env.LAYER_VERSION_ARN}"
+                    
+                    // Assign the cleaned ARN to the environment variable
+                    env.LAYER_VERSION_ARN = layerArn
+                    echo "Successfully published layer version with ARN: ${env.LAYER_VERSION_ARN}"
+                    
                     stash includes: "${ARTIFACT_NAME}", name: 'libreoffice-layer-zip'
                         
                     }

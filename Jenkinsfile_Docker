@@ -9,7 +9,7 @@ pipeline {
         APP_ZIP = "app_package.zip"
         LAYER_ZIP = "dependencies_layer.zip"
         S3_BUCKET = "pdflambdabucket1575"
-        ARTIFACT_NAME = 'layers.zip'
+        ARTIFACT_NAME = 'libreoffice-layer.zip'
         LAYER_VERSION_ARN = ''
         LAYER_NAME = 'libreoffice-layer'
     }
@@ -128,6 +128,7 @@ pipeline {
                 sh 'ls -l'
                 // Add this line to move the zip file to the root of the workspace.
                 sh 'mv LibreOffice_7.4.6.2_Linux_x86-64_deb/DEBS/libreoffice-layer.zip .'
+                sh "chown ${hostUserId}:${hostGroupId} libreoffice-layer.zip"
                 // The stash command will now work correctly.
                 stash includes: 'libreoffice-layer.zip', name: 'libreoffice-layer'
                 

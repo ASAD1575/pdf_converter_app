@@ -37,7 +37,6 @@ pipeline {
             }
             steps {
                 echo 'Downloading LibreOffice .deb packages archive...'
-                // Use curl to download the .tar.gz archive.
                 sh 'apt-get update && apt-get install -y curl tar zip'
                 sh 'curl -L -o LibreOffice_deb.tar.gz "https://downloadarchive.documentfoundation.org/libreoffice/old/7.4.6.2/deb/x86_64/LibreOffice_7.4.6.2_Linux_x86-64_deb.tar.gz"'
 
@@ -45,84 +44,91 @@ pipeline {
                 sh 'tar -zxvf LibreOffice_deb.tar.gz'
 
                 echo 'Installing required tools in the container...'
-                // The ar command is part of the binutils package.
-                // We also need the zip command for the final step.
                 sh 'apt-get update && apt-get install -y binutils zip'
 
-                echo 'Entering the DEBS directory to build the layer...'
-                dir('LibreOffice_7.4.6.2_Linux_x86-64_deb/DEBS') {
-                    // Execute the shell script directly in the correct directory.
-                    sh '''#!/bin/bash
+                echo 'Starting the layer build script...'
+                sh '''#!/bin/bash
+                    # Exit immediately if a command exits with a non-zero status.
+                    set -e
 
-                        # This script automates the extraction of key LibreOffice files
-                        # from the downloaded .deb packages and zips them for an AWS Lambda layer.
+                    # Change directory within the script to avoid Jenkins workspace permissions issues.
+                    cd LibreOffice_7.4.6.2_Linux_x86-64_deb/DEBS
 
-                        # --- Configuration ---
-                        REQUIRED_PACKAGES=(
-                            "libobasis7.4-core"
-                            "libreoffice7.4"
-                            "libreoffice7.4-writer"
-                            "libobasis7.4-writer"
-                        )
+                    echo "Starting the build script in DEBS directory..."
+                    echo "Listing files to confirm .deb packages are present:"
+                    ls -lh *.deb
 
-                        # --- Cleanup from previous runs ---
-                        echo "Cleaning up any old build files and directories..."
-                        rm -rf libreoffice-layer libreoffice-layer.zip temp_extract
+                    # This script automates the extraction of key LibreOffice files
+                    # from the downloaded .deb packages and zips them for an AWS Lambda layer.
 
-                        # --- Create the directory structure for the Lambda layer and a temp directory ---
-                        echo "Creating directory structure for Lambda layer..."
-                        mkdir -p libreoffice-layer/libreoffice
-                        mkdir temp_extract
+                    # --- Configuration ---
+                    REQUIRED_PACKAGES=(
+                        "libobasis7.4-core"
+                        "libreoffice7.4"
+                        "libreoffice7.4-writer"
+                        "libobasis7.4-writer"
+                    )
 
-                        # --- Extract files from necessary packages into a temporary directory ---
-                        echo "Extracting files from required .deb packages into a temporary directory..."
-                        for package in "${REQUIRED_PACKAGES[@]}"; do
-                            DEB_FILE=$(find . -maxdepth 1 -name "${package}_*.deb" | head -n 1)
-                            if [[ -f "$DEB_FILE" ]]; then
-                                echo "Processing: $DEB_FILE"
-                                ar p "$DEB_FILE" data.tar.xz | tar -JxC temp_extract
-                            else
-                                echo "WARNING: Could not find .deb file for package: $package. Skipping."
-                            fi
-                        done
+                    # --- Cleanup from previous runs ---
+                    echo "Cleaning up any old build files and directories..."
+                    rm -rf libreoffice-layer libreoffice-layer.zip temp_extract
 
-                        # --- Find and move the 'program' directory to the correct location ---
-                        echo "Searching for the 'program' directory and moving it..."
-                        PROGRAM_DIR=$(find temp_extract -type d -name "program" | head -n 1)
+                    # --- Create the directory structure for the Lambda layer and a temp directory ---
+                    echo "Creating directory structure for Lambda layer..."
+                    mkdir -p libreoffice-layer/libreoffice
+                    mkdir temp_extract
 
-                        if [[ -d "$PROGRAM_DIR" ]]; then
-                            mv "$PROGRAM_DIR" libreoffice-layer/libreoffice/
-                            echo "Successfully moved 'program' directory to libreoffice-layer/libreoffice/"
+                    # --- Extract files from necessary packages into a temporary directory ---
+                    echo "Extracting files from required .deb packages into a temporary directory..."
+                    for package in "${REQUIRED_PACKAGES[@]}"; do
+                        echo "Searching for package: $package"
+                        DEB_FILE=$(find . -maxdepth 1 -name "${package}_*.deb" | head -n 1)
+                        if [[ -f "$DEB_FILE" ]]; then
+                            echo "Processing: $DEB_FILE"
+                            ar p "$DEB_FILE" data.tar.xz | tar -JxC temp_extract
                         else
-                            echo "ERROR: 'program' directory was not found after extracting all files."
-                            rm -rf libreoffice-layer temp_extract
+                            echo "WARNING: Could not find .deb file for package: $package. Skipping."
+                            # We exit here because missing a required package is a fatal error
                             exit 1
                         fi
+                    done
 
-                        # --- Zip the layer ---
-                        echo "Zipping the LibreOffice layer..."
-                        cd libreoffice-layer/
-                        zip -r ../libreoffice-layer.zip .
+                    # --- Find and move the 'program' directory to the correct location ---
+                    echo "Searching for the 'program' directory and moving it..."
+                    PROGRAM_DIR=$(find temp_extract -type d -name "program" | head -n 1)
 
-                        # --- Size check and conclusion ---
-                        cd ..
-                        rm -rf temp_extract
-                        ZIP_FILE_SIZE_MB=$(du -m libreoffice-layer.zip | cut -f1)
-                        echo "---------------------------------------------------"
-                        echo "Final zip file size is: ${ZIP_FILE_SIZE_MB} MB"
+                    if [[ -d "$PROGRAM_DIR" ]]; then
+                        mv "$PROGRAM_DIR" libreoffice-layer/libreoffice/
+                        echo "Successfully moved 'program' directory to libreoffice-layer/libreoffice/"
+                    else
+                        echo "ERROR: 'program' directory was not found after extracting all files."
+                        rm -rf libreoffice-layer temp_extract
+                        exit 1
+                    fi
 
-                        if (( ZIP_FILE_SIZE_MB < 250 )); then
-                            echo "SUCCESS: The zip file is less than 250 MB and is ready for use as a Lambda layer."
-                        else
-                            echo "ERROR: The zip file size exceeds the 250 MB limit for a Lambda layer."
-                            echo "You may need to manually remove more components to reduce the size."
-                        fi
-                        echo "---------------------------------------------------"
-                    '''
+                    # --- Zip the layer ---
+                    echo "Zipping the LibreOffice layer..."
+                    cd libreoffice-layer/
+                    zip -r ../libreoffice-layer.zip .
 
-                    // Stash the generated zip file.
+                    # --- Size check and conclusion ---
+                    cd ..
+                    rm -rf temp_extract
+                    ZIP_FILE_SIZE_MB=$(du -m libreoffice-layer.zip | cut -f1)
+                    echo "---------------------------------------------------"
+                    echo "Final zip file size is: ${ZIP_FILE_SIZE_MB} MB"
+
+                    if (( ZIP_FILE_SIZE_MB < 250 )); then
+                        echo "SUCCESS: The zip file is less than 250 MB and is ready for use as a Lambda layer."
+                    else
+                        echo "ERROR: The zip file size exceeds the 250 MB limit for a Lambda layer."
+                        exit 1
+                    fi
+                    echo "---------------------------------------------------"
+
+                    # Now, stash the file from the parent directory.
                     stash includes: 'libreoffice-layer.zip', name: 'libreoffice-layer'
-                }
+                '''
             }
         }
         

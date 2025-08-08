@@ -43,13 +43,13 @@ pipeline {
                 echo 'Building Lambda layer with Docker...'
                 // This command creates the LibreOffice layer ZIP file by running a script inside the container.
                 // It mounts the current directory as a volume to save the output file.
-                sh "docker run --rm -v $(pwd):/var/task vladholubiev/libreoffice-lambda-layer:latest bash -c 'sh /build-libreoffice-layer.sh'"
+                sh "docker run --rm -v \$(pwd):/var/task vladholubiev/libreoffice-lambda-layer:latest bash -c 'sh /build-libreoffice-layer.sh'"
                 sh 'ls -lh libreoffice.zip'
 
                 // The original script used libreoffice-lambda-layer/layers.zip.
                 // We're renaming the file for consistency with the rest of your pipeline.
-                sh 'mv -rf libreoffice.zip libreoffice-lambda-layer/'
-                sh 'mv -rf libreoffice-lambda-layer/libreoffice.zip libreoffice-lambda-layer/layers.zip'
+                sh 'mv libreoffice.zip libreoffice-lambda-layer/'
+                sh 'mv libreoffice-lambda-layer/libreoffice.zip libreoffice-lambda-layer/layers.zip'
             }
         }
         

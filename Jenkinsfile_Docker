@@ -29,33 +29,44 @@ pipeline {
         stage('Checkout & Build') {
             agent {
                 docker {
-                    // Use a publicly available image that contains LibreOffice.
-                    image 'xtraeme/libreoffice-lambda:latest'
-                    args '--user 0 --entrypoint="" -v /var/run/docker.sock:/var/run/docker.sock'
+                    // Use a standard Python image. We will install LibreOffice ourselves.
+                    image 'python:3.9-slim'
+                    args '--user 0 --entrypoint=""'
                 }
             }
             steps {
                 echo 'Cloning Git repository...'
-                // Clones the specified repository to get the rest of your app code.
                 git url: 'https://github.com/vladholubiev/serverless-libreoffice.git', branch: 'master'
 
-                // Build the LibreOffice layer using the pre-built Docker image.
-                echo 'Building Lambda layer with Docker...'
-                // This command creates a temporary container, copies the pre-installed LibreOffice files,
-                // and then zips them into a file called `libreoffice.zip`. This is much faster than installing.
+                echo 'Installing LibreOffice from scratch...'
+                // Install necessary tools for downloading and unzipping.
                 sh '''
-                    docker create --name libreoffice-temp xtraeme/libreoffice-lambda:latest
-                    docker cp libreoffice-temp:/opt/libreoffice-bin-7.1/ .
-                    docker rm libreoffice-temp
-                    zip -r libreoffice.zip libreoffice-bin-7.1/
+                    apt-get update
+                    apt-get install -y wget unzip
                 '''
 
-                sh 'ls -lh libreoffice.zip'
+                // Download a known-good LibreOffice binary for Lambda.
+                // This is a direct, reliable method that avoids Docker Hub pull issues.
+                sh '''
+                    wget -q https://github.com/vladholubiev/serverless-libreoffice/releases/download/v0.3.0/libreoffice.zip
+                    unzip libreoffice.zip
+                    rm libreoffice.zip
+                '''
+                
+                // Package the downloaded files into the correct directory structure.
+                sh '''
+                    mkdir -p libreoffice-lambda-layer
+                    mv instdir libreoffice-lambda-layer/
+                '''
 
-                // The original script used libreoffice-lambda-layer/layers.zip.
-                // We're renaming the file for consistency with the rest of your pipeline.
-                sh 'mv libreoffice.zip libreoffice-lambda-layer/'
-                sh 'mv libreoffice-lambda-layer/libreoffice.zip libreoffice-lambda-layer/layers.zip'
+                // Create the final zip file.
+                sh '''
+                    cd libreoffice-lambda-layer
+                    zip -r libreoffice.zip instdir
+                    mv libreoffice.zip layers.zip
+                    chown ${hostUserId}:${hostGroupId} layers.zip
+                    ls -lh
+                '''
             }
         }
         

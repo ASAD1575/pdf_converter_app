@@ -28,21 +28,7 @@ variable "libreoffice_layer_arn" {
   
 }
 
-# variable "secret_key" {
-#   description = "The secret key for the application."
-#   type        = string
-#   default = "SiUtwwXFb8AB3klEityPm45+FS5nv4z0Kei61Lx6"
-  
-# }
-
-# variable "app_name" {
-#   description = "The name of the application, used for naming resources."
-#   type        = string
-#   default     = "pdf-converter" 
-  
-# }
-
-# variable "image_uri" {
-#   type = string
-#   default = "375299695019.dkr.ecr.us-east-1.amazonaws.com/pdf_app_repo"
-# }
+variable "source_code_hash_libreoffice_layer" {
+  description = "The base64-encoded SHA256 hash of the LibreOffice Lambda Layer package."
+  type        = string
+}

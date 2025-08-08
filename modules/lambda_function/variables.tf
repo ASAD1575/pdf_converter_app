@@ -78,17 +78,8 @@ variable "s3_key_layer" {
   type = string
 }
 
-# variable "secret_key" {
-#   type = string
-# }
-
-# variable "app_name" {
-#   description = "The name of the application, used for naming resources."
-#   type        = string
-#   default     = "pdf-converter"
+variable "source_code_hash_libreoffice_layer" {
+  description = "The base64-encoded SHA256 hash of the LibreOffice layer package."
+  type        = string
   
-# }
-
-# variable "image_uri" {
-#   type = string
-# }
+}

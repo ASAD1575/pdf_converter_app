@@ -164,7 +164,12 @@ pipeline {
                         "--compatible-runtimes python3.7 python3.8 python3.9 python3.10 " +
                         "--query 'LayerVersionArn' --output text"
                     ).trim()
-                    // Set the environment variable with the ARN of the newly published layer version.
+
+                    // Check if the output is an empty string
+                    if (output == null || output.isEmpty()) {
+                        error("Failed to retrieve the Lambda layer ARN. The AWS CLI command returned no output.")
+                    }
+                        
                     env.LAYER_VERSION_ARN = output
                     echo "Published layer version ARN: ${env.LAYER_VERSION_ARN}"
                     stash includes: "${ARTIFACT_NAME}", name: 'libreoffice-layer-zip'
@@ -174,30 +179,7 @@ pipeline {
             }
         }
 
-        // // Stage 3: Upload the artifact to S3.
-        // stage('Upload to S3') {
-        //     agent {
-        //         docker {
-        //             image 'amazon/aws-cli:latest'
-        //             args '--user 0 --entrypoint=""'
-        //         }
-        //     }
-
-        //     // This 'withCredentials' block securely uses the AWS credentials configured in Jenkins.
-        //     steps {
-        //         echo 'Uploading artifact to S3...'
-        //         withCredentials([
-        //                 string(credentialsId: 'AWS_ACCESS_KEY_ID', variable: 'AWS_ACCESS_KEY_ID'),
-        //                 string(credentialsId: 'AWS_SECRET_ACCESS_KEY', variable: 'AWS_SECRET_ACCESS_KEY')
-        //             ]) {
-        //             // Uses the AWS CLI to copy the file to S3.
-        //             // The --acl private flag ensures the file isn't publicly accessible by default.
-        //             sh "aws s3 cp ${ARTIFACT_NAME} s3://${S3_BUCKET}/${ARTIFACT_NAME} --acl private"
-        //         }
-        //     }
-        // }
-
-        // Stage 4: Build the Lambda packages.
+        // Stage 3: Build the Lambda packages.
         stage('Build Lambda Packages') {
             agent {
                 docker {
@@ -268,9 +250,11 @@ pipeline {
 
                             def fileHashApp = sh(returnStdout: true, script: "sha256sum ${APP_ZIP} | awk '{print \$1}'").trim()
                             def fileHashLayer = sh(returnStdout: true, script: "sha256sum ${LAYER_ZIP} | awk '{print \$1}'").trim()
+                            def fileHashLibreOfficeLayer = sh(returnStdout: true, script: "sha256sum ${ARTIFACT_NAME} | awk '{print \$1}'").trim()
 
-                            echo "${fileHashApp}"
-                            echo "${fileHashLayer}"
+                            echo "app zip hash: ${fileHashApp}"
+                            echo "dependencies layer hash: ${fileHashLayer}"
+                            echo "libreoffice layer hash: ${fileHashLibreOfficeLayer}"
 
                             // Copying the zip files to the S3_BUCKET
                             echo 'Copying the zip files to the AWS_S3_BUCKET...'
@@ -301,7 +285,8 @@ pipeline {
                                 -var 'source_code_hash_app=${fileHashApp}' \
                                 -var 's3_key_layer=${LAYER_ZIP}' \
                                 -var 'source_code_hash_layer=${fileHashLayer}' \
-                                -var 'libreoffice_layer_arn=${env.LAYER_VERSION_ARN}'
+                                -var 'libreoffice_layer_arn=${env.LAYER_VERSION_ARN}' \
+                                -var 'source_code_hash_libreoffice_layer=${fileHashLibreOfficeLayer}'
                             """
                         }
                     }

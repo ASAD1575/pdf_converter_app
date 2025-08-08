@@ -92,6 +92,7 @@ module "lambda_function" {
   # Ensures Terraform detects zip changes
   source_code_hash_app = var.source_code_hash_app
   source_code_hash_layer = var.source_code_hash_layer
+  source_code_hash_libreoffice_layer = var.source_code_hash_libreoffice_layer
 
 }
 

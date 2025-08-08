@@ -125,7 +125,7 @@ pipeline {
                     fi
                     echo "---------------------------------------------------"
                 '''
-                sh 'ls -l libreoffice-layer.zip'
+                sh 'ls -l'
                 // Add this line to move the zip file to the root of the workspace.
                 sh 'mv LibreOffice_7.4.6.2_Linux-x86-64_deb/DEBS/libreoffice-layer.zip .'
                 // The stash command will now work correctly.

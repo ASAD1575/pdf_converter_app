@@ -154,26 +154,26 @@ pipeline {
 
                         echo 'Publishing new Lambda layer version from S3 and capturing ARN...'
                         
-                        try {
+                        // try {
                             // Attempt to get the ARN and assign it to the environment variable.
-                            env.LAYER_VERSION_ARN = sh(returnStdout: true, script: """
-                                aws lambda publish-layer-version \
-                                    --layer-name ${LAYER_NAME} \
-                                    --content S3Bucket=${S3_BUCKET},S3Key=${ARTIFACT_NAME} \
-                                    --compatible-runtimes python3.7 python3.8 python3.9 python3.10 \
-                                    --query 'LayerVersionArn' \
-                                    --output text
-                            """).trim()
-                        } 
+                        env.LAYER_VERSION_ARN = sh(returnStdout: true, script: """
+                            aws lambda publish-layer-version \
+                                --layer-name ${LAYER_NAME} \
+                                --content S3Bucket=${S3_BUCKET},S3Key=${ARTIFACT_NAME} \
+                                --compatible-runtimes python3.7 python3.8 python3.9 python3.10 \
+                                --query 'LayerVersionArn' \
+                                --output text
+                        """).trim()
+                        // } 
                         // catch (Exception e) {
                         //     // If the sh command fails, the try-catch block will execute.
                         //     error("The AWS CLI command to publish the layer failed. The pipeline will stop.")
                         // }
 
                         // This is the safety check to make sure the variable has a value.
-                        // if (env.LAYER_VERSION_ARN == null || env.LAYER_VERSION_ARN.isEmpty()) {
-                        //     error("Failed to retrieve the Lambda layer ARN. The AWS CLI command returned no output, even after a successful command execution.")
-                        // }
+                        if (env.LAYER_VERSION_ARN == null || env.LAYER_VERSION_ARN.isEmpty()) {
+                            error("Failed to retrieve the Lambda layer ARN. The AWS CLI command returned no output, even after a successful command execution.")
+                        }
 
                         echo "Successfully published layer version with ARN: ${env.LAYER_VERSION_ARN}"
 

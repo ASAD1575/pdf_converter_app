@@ -187,48 +187,84 @@ pipeline {
         // }
 
 
-        // Stage 3: Build the Lambda packages.
-        stage('Build Lambda Packages') {
-            agent {
-                docker {
-                    image 'amazonlinux:2'
-                    args '--user 0 --entrypoint=""'
-                }
-            }
-            steps {
-                sh '''
-                apt-get update && apt-get install zip -y
+        // // Stage 3: Build the Lambda packages.
+        // stage('Build Lambda Packages') {
+        //     agent {
+        //         docker {
+        //             image 'amazonlinux:2'
+        //             args '--user 0 --entrypoint=""'
+        //         }
+        //     }
+        //     steps {
+        //         sh '''
+        //         apt-get update && apt-get install zip -y
 
+        //         rm -f $APP_ZIP $LAYER_ZIP
+        //         rm -rf build
+        //         mkdir -p build/app build/dependencies/python
+        //         ls -l
+
+        //         # Build app zip
+        //         cp -r pdf_converter_FastAPI_app/main.py \
+        //             pdf_converter_FastAPI_app/database.py \
+        //             pdf_converter_FastAPI_app/models.py \
+        //             pdf_converter_FastAPI_app/utils.py \
+        //             pdf_converter_FastAPI_app/templates \
+        //             build/app/
+                
+        //         cd build/app && zip -r ../../$APP_ZIP . && cd ../..
+
+        //         # Build dependencies layer zip
+        //         pip install -r pdf_converter_FastAPI_app/requirements.txt -t build/dependencies/python/
+        //         cd build/dependencies && zip -r ../../$LAYER_ZIP . && cd ../..
+
+        //         # Change OwnerShip of the zip files
+        //         chown ${hostUserId}:${hostGroupId} $APP_ZIP
+        //         chown ${hostUserId}:${hostGroupId} $LAYER_ZIP
+        //         '''
+
+        //         // Pass the zip files to the next stage
+        //         stash includes: "${APP_ZIP}", name: 'app-code'
+        //         stash includes: "${LAYER_ZIP}", name: 'dependencies-layer'
+        //     }
+        // }
+        stage('Build Lambda Packages') {
+        agent {
+            docker {
+                image 'amazonlinux:2'
+                args '--user 0 --entrypoint=""'
+            }
+        }
+        steps {
+            sh '''
+                set -x
+                yum update -y
+                yum install -y python3 python3-pip zip libffi-devel gcc python3-devel libpq-devel
                 rm -f $APP_ZIP $LAYER_ZIP
                 rm -rf build
                 mkdir -p build/app build/dependencies/python
-                ls -l
-
-                # Build app zip
                 cp -r pdf_converter_FastAPI_app/main.py \
-                    pdf_converter_FastAPI_app/database.py \
-                    pdf_converter_FastAPI_app/models.py \
-                    pdf_converter_FastAPI_app/utils.py \
-                    pdf_converter_FastAPI_app/templates \
-                    build/app/
-                
+                      pdf_converter_FastAPI_app/database.py \
+                      pdf_converter_FastAPI_app/models.py \
+                      pdf_converter_FastAPI_app/utils.py \
+                      pdf_converter_FastAPI_app/templates \
+                      pdf_converter_FastAPI_app/static \
+                      build/app/
                 cd build/app && zip -r ../../$APP_ZIP . && cd ../..
-
-                # Build dependencies layer zip
-                pip install -r pdf_converter_FastAPI_app/requirements.txt -t build/dependencies/python/
+                echo "Installing dependencies from requirements.txt..."
+                pip3 install --no-cache-dir --platform manylinux2014_x86_64 --target build/dependencies/python -r pdf_converter_FastAPI_app/requirements.txt
+                echo "Verifying docx2pdf installation..."
+                python3 -c "import docx2pdf; print('docx2pdf installed:', docx2pdf.__version__)"
                 cd build/dependencies && zip -r ../../$LAYER_ZIP . && cd ../..
-
-                # Change OwnerShip of the zip files
+                echo "Listing contents of dependencies layer..."
+                unzip -l $LAYER_ZIP
                 chown ${hostUserId}:${hostGroupId} $APP_ZIP
                 chown ${hostUserId}:${hostGroupId} $LAYER_ZIP
-                '''
-
-                // Pass the zip files to the next stage
-                stash includes: "${APP_ZIP}", name: 'app-code'
-                stash includes: "${LAYER_ZIP}", name: 'dependencies-layer'
-            }
+            '''
+            stash includes: "${APP_ZIP}", name: 'app-code'
+            stash includes: "${LAYER_ZIP}", name: 'dependencies-layer'
         }
-
+    }
 
         // Stage 5: Deploy using Terraform.
         stage('Terraform Deploy') {

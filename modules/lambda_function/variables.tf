@@ -78,8 +78,8 @@ variable "s3_key_layer" {
   type = string
 }
 
-variable "source_code_hash_libreoffice_layer" {
-  description = "The base64-encoded SHA256 hash of the LibreOffice layer package."
-  type        = string
+# variable "source_code_hash_libreoffice_layer" {
+#   description = "The base64-encoded SHA256 hash of the LibreOffice layer package."
+#   type        = string
   
-}
+# }

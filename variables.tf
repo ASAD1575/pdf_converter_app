@@ -28,7 +28,7 @@ variable "libreoffice_layer_arn" {
   
 }
 
-variable "source_code_hash_libreoffice_layer" {
-  description = "The base64-encoded SHA256 hash of the LibreOffice Lambda Layer package."
-  type        = string
-}
+# variable "source_code_hash_libreoffice_layer" {
+#   description = "The base64-encoded SHA256 hash of the LibreOffice Lambda Layer package."
+#   type        = string
+# }

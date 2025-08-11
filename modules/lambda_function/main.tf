@@ -76,21 +76,21 @@ resource "aws_lambda_layer_version" "python_dependencies" {
   source_code_hash = var.source_code_hash_layer
 }
 
-resource "aws_lambda_layer_version" "libreoffice_layer" {
-  layer_name          = "libreoffice-layer"
-  s3_bucket           = var.s3_bucket_name
-  s3_key              = "libreoffice-layer.zip"
-  compatible_runtimes = ["python3.7", "python3.8", "python3.9", "python3.10"]
-  # Helps Terraform detect updates
-  source_code_hash = var.source_code_hash_libreoffice_layer
-}
+# resource "aws_lambda_layer_version" "libreoffice_layer" {
+#   layer_name          = "libreoffice-layer"
+#   s3_bucket           = var.s3_bucket_name
+#   s3_key              = "libreoffice-layer.zip"
+#   compatible_runtimes = ["python3.7", "python3.8", "python3.9", "python3.10"]
+#   # Helps Terraform detect updates
+#   source_code_hash = var.source_code_hash_libreoffice_layer
+# }
 
 # 3. AWS Lambda Function
 resource "aws_lambda_function" "pdf_converter_app" {
   function_name = var.function_name
   # package_type  = "Image"
   handler       = "main.handler"              # FAST API wrapped by Mangum
-  runtime       = "python3.9" 
+  runtime       = ["python3.9", "python3.10", "python3.11", "python3.12"] # Specify the runtime version
   role          = aws_iam_role.lambda_exec_role.arn
   timeout       = 300 
   memory_size   = 1536 

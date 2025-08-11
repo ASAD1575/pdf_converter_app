@@ -4,7 +4,6 @@ import uuid
 import logging
 import tempfile
 import boto3
-from docx2pdf import convert
 from fastapi import FastAPI, Request, Form, UploadFile, File, Query
 from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
@@ -75,28 +74,44 @@ async def convert_to_pdf(file: UploadFile = File(...)):
         logger.info(f"Uploading original DOCX to s3://{S3_BUCKET_NAME}/{docx_s3_key}")
         s3_client.upload_file(input_docx_temp_path, S3_BUCKET_NAME, docx_s3_key)
 
-        logger.info(f"Starting docx2pdf conversion for '{input_docx_temp_path}' to '{output_pdf_temp_path}'")
-        convert(input_docx_temp_path, output_pdf_temp_path)
-        logger.info(f"docx2pdf conversion completed successfully for '{input_docx_temp_path}'")
+        logger.info(f"Starting LibreOffice conversion for '{input_docx_temp_path}' to '{output_pdf_temp_path}'")
+        result = subprocess.run(
+            [
+                LIBREOFFICE_PATH,
+                "--headless",
+                "--nologo",
+                "--convert-to",
+                "pdf",
+                input_docx_temp_path,
+                "--outdir",
+                tempfile.gettempdir()
+            ],
+            check=True,
+            capture_output=True,
+            text=True
+        )
+        logger.info(f"LibreOffice stdout: {result.stdout}")
+        logger.info(f"LibreOffice stderr: {result.stderr}")
 
         if os.path.exists(output_pdf_temp_path):
             logger.info(f"Uploading converted PDF to s3://{S3_BUCKET_NAME}/{pdf_s3_key}")
             s3_client.upload_file(output_pdf_temp_path, S3_BUCKET_NAME, pdf_s3_key)
             return JSONResponse({"status": "completed", "file_id": file_id})
         else:
-            logger.error(f"PDF output file not found after docx2pdf conversion: '{output_pdf_temp_path}'")
+            logger.error(f"PDF output file not found after conversion: '{output_pdf_temp_path}'")
             return JSONResponse(
                 {"status": "failed", "message": "PDF output file not found after conversion."},
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
+    except subprocess.CalledProcessError as e:
+        logger.error(f"LibreOffice failed: {e.stderr}")
+        return JSONResponse(
+            {"status": "failed", "message": f"LibreOffice conversion failed: {e.stderr}"},
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
     except Exception as e:
         logger.error(f"An error occurred during conversion for file '{file.filename}': {e}", exc_info=True)
-        if "No such file or directory" in str(e) and ("soffice" in str(e) or "libreoffice" in str(e)):
-            return JSONResponse(
-                {"status": "failed", "message": f"LibreOffice binary not found at {LIBREOFFICE_PATH}. Ensure the correct Lambda layer is attached."},
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
-            )
         return JSONResponse(
             {"status": "failed", "message": f"An unexpected server error occurred: {str(e)}"},
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
@@ -193,11 +208,6 @@ async def reset_password_direct(request: Request, username_or_email: str = Form(
     if success:
         return RedirectResponse(f"{root_path}/?message=password_reset_success", status_code=status.HTTP_303_SEE_OTHER)
     return templates.TemplateResponse("forgot_password.html", {"request": request, "root_path": root_path, "error": message})
-
-@app.get("/", response_class=HTMLResponse)
-async def root(request: Request):
-    root_path = request.scope.get("root_path", "/prod")
-    return templates.TemplateResponse("login.html", {"request": request, "root_path": root_path})
 
 @app.get("/dashboard", response_class=HTMLResponse)
 async def dashboard(request: Request, username: str = Query("Guest")):

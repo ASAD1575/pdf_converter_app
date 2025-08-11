@@ -26,204 +26,205 @@ pipeline {
         }
 
        // Stage 1: Download, extract, and build the LibreOffice Lambda layer.
-        // stage('Build LibreOffice Layer') {
-        //     agent {
-        //         docker {
-        //             // Using a base image with curl, tar, and zip pre-installed
-        //             // for a more direct build process.
-        //             image 'ubuntu:22.04'
-        //             args '--user 0 -v /var/run/docker.sock:/var/run/docker.sock'
-        //         }
-        //     }
-        //     steps {
-        //         echo 'Installing required tools in the container...'
-        //         sh 'apt-get update && apt-get install -y curl tar zip binutils xz-utils'
+        stage('Build LibreOffice Layer') {
+            agent {
+                docker {
+                    // Using a base image with curl, tar, and zip pre-installed
+                    // for a more direct build process.
+                    image 'ubuntu:22.04'
+                    args '--user 0 -v /var/run/docker.sock:/var/run/docker.sock'
+                }
+            }
+            steps {
+                echo 'Installing required tools in the container...'
+                sh 'apt-get update && apt-get install -y curl tar zip binutils xz-utils'
 
-        //         echo 'Downloading LibreOffice .deb packages archive...'
-        //         sh 'curl -L -o LibreOffice_deb.tar.gz "https://downloadarchive.documentfoundation.org/libreoffice/old/7.4.6.2/deb/x86_64/LibreOffice_7.4.6.2_Linux_x86-64_deb.tar.gz"'
+                echo 'Downloading LibreOffice .deb packages archive...'
+                sh 'curl -L -o LibreOffice_deb.tar.gz "https://downloadarchive.documentfoundation.org/libreoffice/old/7.4.6.2/deb/x86_64/LibreOffice_7.4.6.2_Linux_x86-64_deb.tar.gz"'
 
-        //         echo 'Extracting the archive...'
-        //         sh 'tar -zxvf LibreOffice_deb.tar.gz'
+                echo 'Extracting the archive...'
+                sh 'tar -zxvf LibreOffice_deb.tar.gz'
 
-        //         echo 'Starting the layer build script...'
-        //         sh '''#!/bin/bash
-        //             # Exit immediately if a command exits with a non-zero status.
-        //             set -e
+                echo 'Starting the layer build script...'
+                sh '''#!/bin/bash
+                    # Exit immediately if a command exits with a non-zero status.
+                    set -e
 
-        //             # Change directory within the script to avoid Jenkins workspace permissions issues.
-        //             cd LibreOffice_7.4.6.2_Linux_x86-64_deb/DEBS
+                    # Change directory within the script to avoid Jenkins workspace permissions issues.
+                    cd LibreOffice_7.4.6.2_Linux_x86-64_deb/DEBS
 
-        //             echo "Starting the build script in DEBS directory..."
-        //             echo "Listing files to confirm .deb packages are present:"
-        //             ls -lh *.deb
+                    echo "Starting the build script in DEBS directory..."
+                    echo "Listing files to confirm .deb packages are present:"
+                    ls -lh *.deb
 
-        //             # This script automates the extraction of key LibreOffice files
-        //             # from the downloaded .deb packages and zips them for an AWS Lambda layer.
+                    # This script automates the extraction of key LibreOffice files
+                    # from the downloaded .deb packages and zips them for an AWS Lambda layer.
 
-        //             # --- Configuration ---
-        //             REQUIRED_PACKAGES=(
-        //                 "libobasis7.4-core"
-        //                 "libreoffice7.4"
-        //                 "libreoffice7.4-writer"
-        //                 "libobasis7.4-writer"
-        //             )
+                    # --- Configuration ---
+                    REQUIRED_PACKAGES=(
+                        "libobasis7.4-core"
+                        "libreoffice7.4"
+                        "libreoffice7.4-writer"
+                        "libobasis7.4-writer"
+                    )
 
-        //             # --- Cleanup from previous runs ---
-        //             echo "Cleaning up any old build files and directories..."
-        //             rm -rf libreoffice-layer libreoffice-layer.zip temp_extract
+                    # --- Cleanup from previous runs ---
+                    echo "Cleaning up any old build files and directories..."
+                    rm -rf libreoffice-layer libreoffice-layer.zip temp_extract
 
-        //             # --- Create the directory structure for the Lambda layer and a temp directory ---
-        //             echo "Creating directory structure for Lambda layer..."
-        //             mkdir -p libreoffice-layer/libreoffice
-        //             mkdir temp_extract
+                    # --- Create the directory structure for the Lambda layer and a temp directory ---
+                    echo "Creating directory structure for Lambda layer..."
+                    mkdir -p libreoffice-layer/libreoffice
+                    mkdir temp_extract
 
-        //             # --- Extract files from necessary packages into a temporary directory ---
-        //             echo "Extracting files from required .deb packages into a temporary directory..."
-        //             for package in "${REQUIRED_PACKAGES[@]}"; do
-        //                 echo "Searching for package: $package"
-        //                 DEB_FILE=$(find . -maxdepth 1 -name "${package}_*.deb" | head -n 1)
-        //                 if [[ -f "$DEB_FILE" ]]; then
-        //                     echo "Processing: $DEB_FILE"
-        //                     ar p "$DEB_FILE" data.tar.xz | tar -JxC temp_extract
-        //                 else
-        //                     echo "WARNING: Could not find .deb file for package: $package. Skipping."
-        //                     # We exit here because missing a required package is a fatal error
-        //                     exit 1
-        //                 fi
-        //             done
+                    # --- Extract files from necessary packages into a temporary directory ---
+                    echo "Extracting files from required .deb packages into a temporary directory..."
+                    for package in "${REQUIRED_PACKAGES[@]}"; do
+                        echo "Searching for package: $package"
+                        DEB_FILE=$(find . -maxdepth 1 -name "${package}_*.deb" | head -n 1)
+                        if [[ -f "$DEB_FILE" ]]; then
+                            echo "Processing: $DEB_FILE"
+                            ar p "$DEB_FILE" data.tar.xz | tar -JxC temp_extract
+                        else
+                            echo "WARNING: Could not find .deb file for package: $package. Skipping."
+                            # We exit here because missing a required package is a fatal error
+                            exit 1
+                        fi
+                    done
 
-        //             # --- Find and move the 'program' directory to the correct location ---
-        //             echo "Searching for the 'program' directory and moving it..."
-        //             PROGRAM_DIR=$(find temp_extract -type d -name "program" | head -n 1)
+                    # --- Find and move the 'program' directory to the correct location ---
+                    echo "Searching for the 'program' directory and moving it..."
+                    PROGRAM_DIR=$(find temp_extract -type d -name "program" | head -n 1)
 
-        //             if [[ -d "$PROGRAM_DIR" ]]; then
-        //                 mv "$PROGRAM_DIR" libreoffice-layer/libreoffice/
-        //                 echo "Successfully moved 'program' directory to libreoffice-layer/libreoffice/"
-        //             else
-        //                 echo "ERROR: 'program' directory was not found after extracting all files."
-        //                 rm -rf libreoffice-layer temp_extract
-        //                 exit 1
-        //             fi
+                    if [[ -d "$PROGRAM_DIR" ]]; then
+                        mv "$PROGRAM_DIR" libreoffice-layer/libreoffice/
+                        echo "Successfully moved 'program' directory to libreoffice-layer/libreoffice/"
+                    else
+                        echo "ERROR: 'program' directory was not found after extracting all files."
+                        rm -rf libreoffice-layer temp_extract
+                        exit 1
+                    fi
 
-        //             # --- Zip the layer ---
-        //             echo "Zipping the LibreOffice layer..."
-        //             cd libreoffice-layer/
-        //             zip -r ../libreoffice-layer.zip .
+                    # --- Zip the layer ---
+                    echo "Zipping the LibreOffice layer..."
+                    cd libreoffice-layer/
+                    zip -r ../libreoffice-layer.zip .
 
-        //             # --- Size check and conclusion ---
-        //             cd ..
-        //             rm -rf temp_extract
-        //             ZIP_FILE_SIZE_MB=$(du -m libreoffice-layer.zip | cut -f1)
-        //             echo "---------------------------------------------------"
-        //             echo "Final zip file size is: ${ZIP_FILE_SIZE_MB} MB"
+                    # --- Size check and conclusion ---
+                    cd ..
+                    rm -rf temp_extract
+                    ZIP_FILE_SIZE_MB=$(du -m libreoffice-layer.zip | cut -f1)
+                    echo "---------------------------------------------------"
+                    echo "Final zip file size is: ${ZIP_FILE_SIZE_MB} MB"
 
-        //             if (( ZIP_FILE_SIZE_MB < 250 )); then
-        //                 echo "SUCCESS: The zip file is less than 250 MB and is ready for use as a Lambda layer."
-        //             else
-        //                 echo "ERROR: The zip file size exceeds the 250 MB limit for a Lambda layer."
-        //                 exit 1
-        //             fi
-        //             echo "---------------------------------------------------"
-        //         '''
-        //         sh 'ls -l'
-        //         // Add this line to move the zip file to the root of the workspace.
-        //         sh 'mv LibreOffice_7.4.6.2_Linux_x86-64_deb/DEBS/libreoffice-layer.zip .'
-        //         sh "chown ${hostUserId}:${hostGroupId} libreoffice-layer.zip"
-        //         // The stash command will now work correctly.
-        //         stash includes: 'libreoffice-layer.zip', name: 'libreoffice-layer'
+                    if (( ZIP_FILE_SIZE_MB < 250 )); then
+                        echo "SUCCESS: The zip file is less than 250 MB and is ready for use as a Lambda layer."
+                    else
+                        echo "ERROR: The zip file size exceeds the 250 MB limit for a Lambda layer."
+                        exit 1
+                    fi
+                    echo "---------------------------------------------------"
+                '''
+                sh 'ls -l'
+                // Add this line to move the zip file to the root of the workspace.
+                sh 'mv LibreOffice_7.4.6.2_Linux_x86-64_deb/DEBS/libreoffice-layer.zip .'
+                sh "chown ${hostUserId}:${hostGroupId} libreoffice-layer.zip"
+                // The stash command will now work correctly.
+                stash includes: 'libreoffice-layer.zip', name: 'libreoffice-layer'
                 
-        //     }
-        // }
+            }
+        }
         
-        // // Stage 2: Publish the layer to AWS Lambda.
-        // stage('Publish Lambda Layer') {
-        //     agent {
-        //         docker {
-        //             image 'amazon/aws-cli:latest'
-        //             args '--user 0 --entrypoint=""'
-        //         }
-        //     }
-        //     steps {
-        //         script {
-        //             withCredentials([
-        //                 string(credentialsId: 'AWS_ACCESS_KEY_ID', variable: 'AWS_ACCESS_KEY_ID'),
-        //                 string(credentialsId: 'AWS_SECRET_ACCESS_KEY', variable: 'AWS_SECRET_ACCESS_KEY')
-        //             ]) {
-        //                 echo 'Uploading layer artifact to S3...'
-        //                 sh "aws s3 cp ${ARTIFACT_NAME} s3://${S3_BUCKET}/${ARTIFACT_NAME} --acl private"
+        // Stage 2: Publish the layer to AWS Lambda.
+        stage('Publish Lambda Layer') {
+            agent {
+                docker {
+                    image 'amazon/aws-cli:latest'
+                    args '--user 0 --entrypoint=""'
+                }
+            }
+            steps {
+                script {
+                    withCredentials([
+                        string(credentialsId: 'AWS_ACCESS_KEY_ID', variable: 'AWS_ACCESS_KEY_ID'),
+                        string(credentialsId: 'AWS_SECRET_ACCESS_KEY', variable: 'AWS_SECRET_ACCESS_KEY')
+                    ]) {
+                        // UNSTASH THE LAYER FILE HERE, BEFORE IT'S NEEDED
+                        unstash 'libreoffice-layer'
 
-        //                 echo 'Publishing new Lambda layer version from S3 and capturing ARN...'
+                        echo 'Uploading layer artifact to S3...'
+                        sh "aws s3 cp ${ARTIFACT_NAME} s3://${S3_BUCKET}/${ARTIFACT_NAME} --acl private"
+
+                        echo 'Publishing new Lambda layer version from S3 and capturing ARN...'
                         
-        //                 // try {
-        //                     // Attempt to get the ARN and assign it to the environment variable.
-        //                 env.LAYER_VERSION_ARN = sh(returnStdout: true, script: """
-        //                     aws lambda publish-layer-version \
-        //                         --layer-name ${LAYER_NAME} \
-        //                         --content S3Bucket=${S3_BUCKET},S3Key=${ARTIFACT_NAME} \
-        //                         --compatible-runtimes python3.7 python3.8 python3.9 python3.10 \
-        //                         --query 'LayerVersionArn' \
-        //                         --output text
-        //                 """).trim()
-        //                 // } 
-        //                 // catch (Exception e) {
-        //                 //     // If the sh command fails, the try-catch block will execute.
-        //                 //     error("The AWS CLI command to publish the layer failed. The pipeline will stop.")
-        //                 // }
+                        // Corrected syntax for `sh` command and assigning its output
+                        env.LAYER_VERSION_ARN = sh(
+                            returnStdout: true,
+                            script: """
+                                aws lambda publish-layer-version \
+                                --region us-east-1 \
+                                --layer-name libreoffice-layer \
+                                --zip-file fileb://${ARTIFACT_NAME} \
+                                --compatible-runtimes python3.7 python3.8 python3.9 python3.10 \
+                                --query "LayerVersionArn" \
+                                --output text
+                            """
+                        ).trim()
 
-        //                 // This is the safety check to make sure the variable has a value.
-        //                 // if (env.LAYER_VERSION_ARN == null || env.LAYER_VERSION_ARN.isEmpty()) {
-        //                 //     error("Failed to retrieve the Lambda layer ARN. The AWS CLI command returned no output, even after a successful command execution.")
-        //                 // }
+                        // A check to make sure the variable has a value.
+                        if (env.LAYER_VERSION_ARN == null || env.LAYER_VERSION_ARN.isEmpty()) {
+                            error("Failed to retrieve the Lambda layer ARN. The AWS CLI command returned no output.")
+                        }
 
-        //                 echo "Successfully published layer version with ARN: ${env.LAYER_VERSION_ARN}"
+                        echo "Successfully published layer version with ARN: ${env.LAYER_VERSION_ARN}"
 
-        //                 stash includes: "${ARTIFACT_NAME}", name: 'libreoffice-layer-zip'
-        //             }
-        //         }
-        //     }
-        // }
+                        stash includes: "${ARTIFACT_NAME}", name: 'libreoffice-layer-zip'
+                    }
+                }
+            }
+        }
 
-        // // Stage 3: Build the Lambda packages.
-        // stage('Build Lambda Packages') {
-        //     agent {
-        //         docker {
-        //             image 'python:3.9-slim'
-        //             args '--user 0 --entrypoint=""'
-        //         }
-        //     }
-        //     steps {
-        //         sh '''
-        //         apt-get update && apt-get install zip -y
+        // Stage 3: Build the Lambda packages.
+        stage('Build Lambda Packages') {
+            agent {
+                docker {
+                    image 'python:3.9-slim'
+                    args '--user 0 --entrypoint=""'
+                }
+            }
+            steps {
+                sh '''
+                apt-get update && apt-get install zip -y
 
-        //         rm -f $APP_ZIP $LAYER_ZIP
-        //         rm -rf build
-        //         mkdir -p build/app build/dependencies/python
-        //         ls -l
+                rm -f $APP_ZIP $LAYER_ZIP
+                rm -rf build
+                mkdir -p build/app build/dependencies/python
+                ls -l
 
-        //         # Build app zip
-        //         cp -r pdf_converter_FastAPI_app/main.py \
-        //             pdf_converter_FastAPI_app/database.py \
-        //             pdf_converter_FastAPI_app/models.py \
-        //             pdf_converter_FastAPI_app/utils.py \
-        //             pdf_converter_FastAPI_app/templates \
-        //             build/app/
+                # Build app zip
+                cp -r pdf_converter_FastAPI_app/main.py \
+                    pdf_converter_FastAPI_app/database.py \
+                    pdf_converter_FastAPI_app/models.py \
+                    pdf_converter_FastAPI_app/utils.py \
+                    pdf_converter_FastAPI_app/templates \
+                    build/app/
                 
-        //         cd build/app && zip -r ../../$APP_ZIP . && cd ../..
+                cd build/app && zip -r ../../$APP_ZIP . && cd ../..
 
-        //         # Build dependencies layer zip
-        //         pip install -r pdf_converter_FastAPI_app/requirements.txt -t build/dependencies/python/
-        //         cd build/dependencies && zip -r ../../$LAYER_ZIP . && cd ../..
+                # Build dependencies layer zip
+                pip install -r pdf_converter_FastAPI_app/requirements.txt -t build/dependencies/python/
+                cd build/dependencies && zip -r ../../$LAYER_ZIP . && cd ../..
 
-        //         # Change OwnerShip of the zip files
-        //         chown ${hostUserId}:${hostGroupId} $APP_ZIP
-        //         chown ${hostUserId}:${hostGroupId} $LAYER_ZIP
-        //         '''
+                # Change OwnerShip of the zip files
+                chown ${hostUserId}:${hostGroupId} $APP_ZIP
+                chown ${hostUserId}:${hostGroupId} $LAYER_ZIP
+                '''
 
-        //         // Pass the zip files to the next stage
-        //         stash includes: "${APP_ZIP}", name: 'app-code'
-        //         stash includes: "${LAYER_ZIP}", name: 'dependencies-layer'
-        //     }
-        // }
+                // Pass the zip files to the next stage
+                stash includes: "${APP_ZIP}", name: 'app-code'
+                stash includes: "${LAYER_ZIP}", name: 'dependencies-layer'
+            }
+        }
 
 
         // Stage 5: Deploy using Terraform.
@@ -244,7 +245,7 @@ pipeline {
                         // Get the zip files from the previous stage
                         unstash 'app-code'
                         unstash 'dependencies-layer'
-                        // unstash 'libreoffice-layer-zip'
+                        unstash 'libreoffice-layer-zip'
 
                         dir(env.TF_PATH) {
 
@@ -264,7 +265,7 @@ pipeline {
                             echo 'Copying the zip files to the AWS_S3_BUCKET...'
                             sh "aws s3 cp ${APP_ZIP} s3://${S3_BUCKET}/"
                             sh "aws s3 cp ${LAYER_ZIP} s3://${S3_BUCKET}/"
-                            // sh "aws s3 cp ${ARTIFACT_NAME} s3://${S3_BUCKET}/"
+                            sh "aws s3 cp ${ARTIFACT_NAME} s3://${S3_BUCKET}/"
 
                             // Create Dynamodb only for first time to run pipeline...
                             // To run it first_time uncomment it...
@@ -328,4 +329,4 @@ pipeline {
         failure { echo 'Pipeline failed!' }
         success { echo 'Pipeline completed successfully!' }
     }
-}
+})

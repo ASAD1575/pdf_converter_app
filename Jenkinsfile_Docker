@@ -173,7 +173,7 @@ pipeline {
                         // // This is the safety check to make sure the variable has a value.
                         // if (env.LAYER_VERSION_ARN == null || env.LAYER_VERSION_ARN.isEmpty()) {
                         //     error("Failed to retrieve the Lambda layer ARN. The AWS CLI command returned no output, even after a successful command execution.")
-                        // }
+                        }
 
                         echo "Successfully published layer version with ARN: ${env.LAYER_VERSION_ARN}"
 

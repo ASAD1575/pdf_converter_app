@@ -41,25 +41,37 @@ resource "aws_iam_role_policy_attachment" "lambda_vpc_access" {
 }
 
 resource "aws_iam_role_policy" "lambda_s3_access" {
-  name = "${var.function_name}-s3-access-policy"
+  name = "${var.function_name}-access-policy"
   role = aws_iam_role.lambda_exec_role.id
 
   policy = jsonencode({
     Version = "2012-10-17",
     Statement = [
       {
+        Effect = "Allow",
         Action = [
           "s3:PutObject",
           "s3:GetObject",
-          "s3:DeleteObject",
-          "s3:ListBucket" # Needed for some S3 operations, e.g., if you list contents
+          "s3:DeleteObject"
         ],
-        Effect   = "Allow",
         Resource = [
-          "arn:aws:s3:::${var.s3_bucket_name}",
           "arn:aws:s3:::${var.s3_bucket_name}/*"
         ]
       },
+      {
+        Effect = "Allow",
+        Action = [
+          "logs:CreateLogGroup",
+          "logs:CreateLogStream",
+          "logs:PutLogEvents"
+        ],
+        Resource = "arn:aws:logs:${var.aws_region}:${var.aws_account_id}:log-group:/aws/lambda/${var.function_name}:*"
+      },
+      {
+        Effect = "Allow",
+        Action = "lambda:GetLayerVersion",
+        Resource = "arn:aws:lambda:us-east-1:764866452798:layer:libreoffice-gzip:1"
+      }
     ]
   })
 }
@@ -123,6 +135,9 @@ resource "aws_lambda_function" "pdf_converter_app" {
       S3_BUCKET_NAME = var.s3_bucket_name
       # SERCRET_KEY = var.secret_key
       FASTAPI_ROOT_PATH = "/prod"
+      PATH             = "/opt/libreoffice/program:/usr/bin:/bin"
+      LD_LIBRARY_PATH  = "/opt/libreoffice/program:/usr/lib:/lib"
+      HOME             = "/tmp"
       # Add any other environment variables your app needs
     }
   }

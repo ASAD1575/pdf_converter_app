@@ -83,3 +83,17 @@ variable "s3_key_layer" {
 #   type        = string
   
 # }
+
+variable "aws_region" {
+  description = "The AWS region where the Lambda function will be deployed."
+  type        = string
+  default     = "us-east-1"
+  
+}
+
+variable "aws_account_id" {
+  description = "The AWS account ID where the Lambda function will be deployed."
+  type        = string
+  default     = "123456789012" # Replace with your actual AWS account ID
+  
+}

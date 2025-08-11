@@ -191,7 +191,7 @@ pipeline {
         stage('Build Lambda Packages') {
             agent {
                 docker {
-                    image 'python:3.9-slim'
+                    image 'amazonlinux:2'
                     args '--user 0 --entrypoint=""'
                 }
             }

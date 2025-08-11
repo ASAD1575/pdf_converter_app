@@ -90,7 +90,7 @@ resource "aws_lambda_function" "pdf_converter_app" {
   function_name = var.function_name
   # package_type  = "Image"
   handler       = "main.handler"              # FAST API wrapped by Mangum
-  runtime       = ["python3.9", "python3.10", "python3.11", "python3.12"] # Specify the runtime version
+  runtime       = "python3.9" # Specify the runtime version
   role          = aws_iam_role.lambda_exec_role.arn
   timeout       = 300 
   memory_size   = 1536 

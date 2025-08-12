@@ -208,7 +208,7 @@ pipeline {
                 cd build/app && zip -r ../../$APP_ZIP . && cd ../..
 
                 # Build dependencies layer zip
-                pip3 install -r pdf_converter_FastAPI_app/requirements.txt -t build/dependencies/python/
+                pip3 install -r pdf_converter_FastAPI_app/requirements.txt -t build/dependencies/python/ --no-cache-dir
                 cd build/dependencies && zip -r ../../$LAYER_ZIP . && cd ../..
 
                 # Change ownership
@@ -243,7 +243,7 @@ pipeline {
                         dir(env.TF_PATH) {
                             echo 'Installing dependencies...'
                             sh 'apk add --no-cache python3 py3-pip coreutils'
-                            sh 'pip install awscli'
+                            sh 'pip install awscli --no-cache-dir'
 
                             def fileHashApp = sh(returnStdout: true, script: "sha256sum ${APP_ZIP} | awk '{print \$1}'").trim()
                             def fileHashLayer = sh(returnStdout: true, script: "sha256sum ${LAYER_ZIP} | awk '{print \$1}'").trim()

@@ -88,14 +88,14 @@ resource "aws_lambda_layer_version" "python_dependencies" {
   source_code_hash = var.source_code_hash_layer
 }
 
-# resource "aws_lambda_layer_version" "libreoffice_layer" {
-#   layer_name          = "libreoffice-layer"
-#   s3_bucket           = var.s3_bucket_name
-#   s3_key              = "libreoffice-layer.zip"
-#   compatible_runtimes = ["python3.7", "python3.8", "python3.9", "python3.10"]
-#   # Helps Terraform detect updates
-#   source_code_hash = var.source_code_hash_libreoffice_layer
-# }
+resource "aws_lambda_layer_version" "libreoffice_layer" {
+  layer_name          = "libreoffice-layer"
+  s3_bucket           = var.s3_bucket_name
+  s3_key              = "libreoffice-layer.zip"
+  compatible_runtimes = ["python3.7", "python3.8", "python3.9", "python3.10"]
+  # Helps Terraform detect updates
+  source_code_hash = var.source_code_hash_libreoffice_layer
+}
 
 # 3. AWS Lambda Function
 resource "aws_lambda_function" "pdf_converter_app" {

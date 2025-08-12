@@ -78,11 +78,11 @@ variable "s3_key_layer" {
   type = string
 }
 
-# variable "source_code_hash_libreoffice_layer" {
-#   description = "The base64-encoded SHA256 hash of the LibreOffice layer package."
-#   type        = string
+variable "source_code_hash_libreoffice_layer" {
+  description = "The base64-encoded SHA256 hash of the LibreOffice layer package."
+  type        = string
   
-# }
+}
 
 variable "aws_region" {
   description = "The AWS region where the Lambda function will be deployed."
@@ -94,6 +94,6 @@ variable "aws_region" {
 variable "aws_account_id" {
   description = "The AWS account ID where the Lambda function will be deployed."
   type        = string
-  default     = "123456789012" # Replace with your actual AWS account ID
+  default     = "375299695019" # Replace with your actual AWS account ID
   
 }

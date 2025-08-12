@@ -78,7 +78,7 @@ pipeline {
                     fi
                 '''
                 
-                sh 'mv LibreOffice_7.4.6.2_Linux_x86-64_deb/DEBS/libreoffice-layer.zip .'
+                sh 'mv -rf LibreOffice_7.4.6.2_Linux_x86-64_deb/DEBS/libreoffice-layer.zip .'
                 sh "chown ${hostUserId}:${hostGroupId} libreoffice-layer.zip"
                 stash includes: 'libreoffice-layer.zip', name: 'libreoffice-layer'
             }

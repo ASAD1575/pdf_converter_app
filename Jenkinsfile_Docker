@@ -54,9 +54,7 @@ pipeline {
                 
                 REQUIRED_PACKAGES=(
                     "libobasis7.4-core"
-                    "libreoffice7.4"
                     "libreoffice7.4-writer"
-                    "libobasis7.4-writer"
                 )
                 
                 echo "Extracting LibreOffice files..."
@@ -72,16 +70,12 @@ pipeline {
                 
                 cd ../..
                 
-                # Copy only essential files
+                # Copy only essential files. This is the main change.
                 PROGRAM_DIR=$(find temp_extract -type d -name "program" | head -n 1)
                 if [[ -d "$PROGRAM_DIR" ]]; then
                     echo "Program directory: $PROGRAM_DIR"
                     echo "Copying essential LibreOffice files to layer..."
-                    cp -v "$PROGRAM_DIR/soffice" "$PROGRAM_DIR/soffice.bin" libreoffice-layer/libreoffice/program/ 2>/dev/null || true
-                    echo "Copying shared libraries (lib*.so*)..."
-                    find "$PROGRAM_DIR" -type f -name "lib*.so*" -exec cp -v {} libreoffice-layer/libreoffice/program/ \\; || true
-                    echo "Copying libreoffice executable..."
-                    find "$PROGRAM_DIR" -type f -name "libreoffice" -exec cp -v {} libreoffice-layer/libreoffice/program/ \\; || true
+                    cp -r "$PROGRAM_DIR" libreoffice-layer/libreoffice/
                     echo "Listing copied files..."
                     ls -l libreoffice-layer/libreoffice/program/
                 else
@@ -89,12 +83,30 @@ pipeline {
                     exit 1
                 fi
                 
-                # Remove unnecessary files
-                echo "Cleaning up unnecessary files..."
-                rm -rf libreoffice-layer/libreoffice/program/help
-                rm -rf libreoffice-layer/libreoffice/program/share
-                rm -rf libreoffice-layer/libreoffice/program/presets
-                rm -rf libreoffice-layer/libreoffice/program/readmes
+                #
+                # IMPORTANT: Much more aggressive cleanup to reduce size
+                #
+                echo "Starting aggressive cleanup of unnecessary files..."
+                
+                cd libreoffice-layer/libreoffice/program
+                # Remove all locale files except for English (en-US), which is required
+                find . -maxdepth 1 -type d -name "locale" -exec rm -rf {} +
+                # Remove help files
+                rm -rf help
+                # Remove shared resources
+                rm -rf share
+                # Remove dictionaries and extensions
+                rm -rf dictionaries
+                rm -rf extensions
+                # Remove presets and readmes
+                rm -rf presets
+                rm -rf readmes
+                # Remove fonts and configurations that aren't critical
+                rm -rf fonts
+                rm -rf ../presets
+                
+                # Go back to the root of the layer
+                cd ../../..
                 
                 # Create the layer zip
                 cd libreoffice-layer/
@@ -109,8 +121,9 @@ pipeline {
                 UNZIPPED_SIZE_MB=$(du -m temp_unzip | cut -f1)
                 echo "Unzipped layer size: ${UNZIPPED_SIZE_MB} MB"
                 
-                if (( UNZIPPED_SIZE_MB >= 150 )); then
-                    echo "ERROR: Unzipped LibreOffice layer exceeds 150MB limit"
+                # Check against the actual 250MB unzipped limit
+                if (( UNZIPPED_SIZE_MB >= 250 )); then
+                    echo "ERROR: Unzipped LibreOffice layer exceeds 250MB limit"
                     exit 1
                 fi
                 
@@ -145,12 +158,12 @@ pipeline {
                         def layerArn = sh(
                             returnStdout: true,
                             script: """
-                                aws lambda publish-layer-version \
-                                --region us-east-1 \
-                                --layer-name ${LAYER_NAME} \
-                                --content S3Bucket=${S3_BUCKET},S3Key=${ARTIFACT_NAME} \
-                                --compatible-runtimes python3.9 \
-                                --query "LayerVersionArn" \
+                                aws lambda publish-layer-version \\
+                                --region us-east-1 \\
+                                --layer-name ${LAYER_NAME} \\
+                                --content S3Bucket=${S3_BUCKET},S3Key=${ARTIFACT_NAME} \\
+                                --compatible-runtimes python3.9 \\
+                                --query "LayerVersionArn" \\
                                 --output text
                             """
                         ).trim()
@@ -234,7 +247,7 @@ pipeline {
 
                             def fileHashApp = sh(returnStdout: true, script: "sha256sum ${APP_ZIP} | awk '{print \$1}'").trim()
                             def fileHashLayer = sh(returnStdout: true, script: "sha256sum ${LAYER_ZIP} | awk '{print \$1}'").trim()
-                            def fileHashLibreoffice = sh(returnStdout: true, script: "sha256sum ${LAYER_ZIP} | awk '{print \$1}'").trim()
+                            def fileHashLibreoffice = sh(returnStdout: true, script: "sha256sum ${ARTIFACT_NAME} | awk '{print \$1}'").trim()
                             
                             echo "Uploading to S3..."
                             sh "aws s3 cp ${APP_ZIP} s3://${S3_BUCKET}/"

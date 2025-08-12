@@ -74,8 +74,8 @@ module "lambda_function" {
   app_security_group_id     = module.security_group.app_security_group_id
   # secret_key                = var.secret_key
   # image_uri                 = var.image_uri
-  # Layers
-  libreoffice_layer_arn     = var.libreoffice_layer_arn # Ensure this is set to the correct ARN for your region and runtime
+  # LibreOffice layer ARN is now optional - not used in current configuration
+  libreoffice_layer_arn     = var.libreoffice_layer_arn
   
   # RDS Environment Variables
   db_host                   = module.rds.rds_endpoint

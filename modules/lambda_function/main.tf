@@ -105,7 +105,7 @@ resource "aws_lambda_function" "pdf_converter_app" {
   runtime       = "python3.9" # Specify the runtime version
   role          = aws_iam_role.lambda_exec_role.arn
   timeout       = 300 
-  memory_size   = 3008
+  memory_size   = 4096 
 
   # Code from S3
   s3_bucket         = var.s3_bucket_name

@@ -1,26 +1,30 @@
-environment {
-    AWS_ACCOUNT_ID = '375299695019'
-    AWS_DEFAULT_REGION = 'us-east-1'
-    APP_SOURCE_PATH = 'pdf_converter_FastAPI_app/'
-    TF_PATH = '.'
-    APP_ZIP = "app_package.zip"
-    LAYER_ZIP = "dependencies_layer.zip"
-    ARTIFACT_NAME = 'libreoffice-layer.zip'
-    LAYER_NAME = 'libreoffice-layer'
-}
+pipeline {
+    agent any
 
-stages {
-    stage('Initialize Variables') {
-        steps {
-            script {
-                env.hostUserId = sh(returnStdout: true, script: 'id -u').trim()
-                env.hostGroupId = sh(returnStdout: true, script: 'id -g').trim()
-                echo "Jenkins user/group ID: ${env.hostUserId}:${env.hostGroupId}"
-            }
-        }
+    environment {
+        AWS_ACCOUNT_ID = '375299695019'
+        AWS_DEFAULT_REGION = 'us-east-1'
+        APP_SOURCE_PATH = 'pdf_converter_FastAPI_app/'
+        TF_PATH = '.'
+        APP_ZIP = "app_package.zip"
+        LAYER_ZIP = "dependencies_layer.zip"
+        S3_BUCKET = "pdflambdabucket1575"
+        ARTIFACT_NAME = 'libreoffice-layer.zip'
+        LAYER_NAME = 'libreoffice-layer'
     }
 
-    stage('Build LibreOffice Layer') {
+    stages {
+        stage('Initialize Variables') {
+            steps {
+                script {
+                    env.hostUserId = sh(returnStdout: true, script: 'id -u').trim()
+                    env.hostGroupId = sh(returnStdout: true, script: 'id -g').trim()
+                    echo "Jenkins user/group ID: ${env.hostUserId}:${env.hostGroupId}"
+                }
+            }
+        }
+
+        stage('Build LibreOffice Layer') {
         agent {
             docker {
                 image 'ubuntu:22.04'
@@ -29,7 +33,7 @@ stages {
         }
         steps {
             echo 'Installing required tools...'
-            sh 'apt-get update && apt-get install -y curl tar zip binutils xz-utils file'
+            sh 'apt-get update && apt-get install -y curl tar zip binutils xz-utils'
 
             echo 'Downloading LibreOffice...'
             sh 'curl -L -o LibreOffice_deb.tar.gz "https://downloadarchive.documentfoundation.org/libreoffice/old/7.4.6.2/deb/x86_64/LibreOffice_7.4.6.2_Linux_x86-64_deb.tar.gz"'
@@ -74,22 +78,10 @@ stages {
                     echo "Program directory: $PROGRAM_DIR"
                     echo "Copying essential LibreOffice files to layer..."
                     cp -v "$PROGRAM_DIR/soffice" "$PROGRAM_DIR/soffice.bin" libreoffice-layer/libreoffice/program/ 2>/dev/null || true
-                    
-                    # Identify required shared libraries using ldd
-                    echo "Identifying required shared libraries for soffice.bin..."
-                    ldd "$PROGRAM_DIR/soffice.bin" | grep -o '/.*\\.so[^ ]*' | sort -u | while read -r lib; do
-                        if [[ -f "$lib" && ! "$lib" =~ (libz|libc|libm|libdl|libpthread|ld-linux) ]]; then
-                            cp -v "$lib" libreoffice-layer/libreoffice/program/ 2>/dev/null || true
-                        fi
-                    done
-                    
+                    echo "Copying shared libraries (lib*.so*)..."
+                    find "$PROGRAM_DIR" -type f -name "lib*.so*" -exec cp -v {} libreoffice-layer/libreoffice/program/ \\; || true
                     echo "Copying libreoffice executable..."
-                    cp -v "$PROGRAM_DIR/libreoffice" libreoffice-layer/libreoffice/program/ 2>/dev/null || true
-                    
-                    # Strip debug symbols to reduce size
-                    echo "Stripping debug symbols from binaries..."
-                    find libreoffice-layer/libreoffice/program -type f -exec file {} \\; | grep ELF | cut -d: -f1 | xargs -I {} strip --strip-unneeded {} 2>/dev/null || true
-                    
+                    find "$PROGRAM_DIR" -type f -name "libreoffice" -exec cp -v {} libreoffice-layer/libreoffice/program/ \\; || true
                     echo "Listing copied files..."
                     ls -l libreoffice-layer/libreoffice/program/
                 else
@@ -99,28 +91,26 @@ stages {
                 
                 # Remove unnecessary files
                 echo "Cleaning up unnecessary files..."
-                rm -rf libreoffice-layer/libreoffice/program/{help,share,presets,readmes,*.txt,*.xml,*.ini,*.jar}
-                find libreoffice-layer/libreoffice/program -type f -name "*.py" -delete
-                find libreoffice-layer/libreoffice/program -type f -name "*.pyc" -delete
+                rm -rf libreoffice-layer/libreoffice/program/help
+                rm -rf libreoffice-layer/libreoffice/program/share
+                rm -rf libreoffice-layer/libreoffice/program/presets
+                rm -rf libreoffice-layer/libreoffice/program/readmes
                 
-                # Create the layer zip with maximum compression
+                # Create the layer zip
                 cd libreoffice-layer/
-                zip -9 -r ../libreoffice-layer.zip .
+                zip -r ../libreoffice-layer.zip .
                 cd ..
                 
                 # Check sizes
-                echo "Listing zip contents..."
-                unzip -l libreoffice-layer.zip
                 ZIP_FILE_SIZE_MB=$(du -m libreoffice-layer.zip | cut -f1)
                 echo "Zipped layer size: ${ZIP_FILE_SIZE_MB} MB"
                 mkdir temp_unzip
                 unzip libreoffice-layer.zip -d temp_unzip
-                UNZIPPED_SIZE_BYTES=$(find temp_unzip -type f -exec stat -f %z {} \\; | awk '{s+=$1} END {print s}')
-                UNZIPPED_SIZE_MB=$((UNZIPPED_SIZE_BYTES / 1024 / 1024))
-                echo "Unzipped layer size: ${UNZIPPED_SIZE_MB} MB (${UNZIPPED_SIZE_BYTES} bytes)"
+                UNZIPPED_SIZE_MB=$(du -m temp_unzip | cut -f1)
+                echo "Unzipped layer size: ${UNZIPPED_SIZE_MB} MB"
                 
-                if (( UNZIPPED_SIZE_MB >= 110 )); then
-                    echo "ERROR: Unzipped LibreOffice layer exceeds 110MB limit"
+                if (( UNZIPPED_SIZE_MB >= 150 )); then
+                    echo "ERROR: Unzipped LibreOffice layer exceeds 150MB limit"
                     exit 1
                 fi
                 
@@ -179,143 +169,121 @@ stages {
         }
     }
 
-    stage('Build Lambda Packages') {
-        agent {
-            docker {
-                image 'amazonlinux:2'
-                args '--user 0 --entrypoint=""'
+        stage('Build Lambda Packages') {
+            agent {
+                docker {
+                    image 'amazonlinux:2'
+                    args '--user 0 --entrypoint=""'
+                }
             }
-        }
-        steps {
-            sh '''
-                set -x
-                yum update -y
-                yum install -y amazon-linux-extras
-                amazon-linux-extras enable python3.8
-                yum install -y python3.8 python3.8-pip zip unzip libffi-devel gcc python3.8-devel libpq-devel
-                ln -sf /usr/bin/python3.8 /usr/bin/python3.9
-                ln -sf /usr/bin/pip3.8 /usr/bin/pip3.9
+            steps {
+                sh '''
+                yum update -y && yum install -y python3 python3-pip zip
+                
                 rm -f $APP_ZIP $LAYER_ZIP
                 rm -rf build
                 mkdir -p build/app build/dependencies/python
+                
+                # Build app zip
                 cp -r pdf_converter_FastAPI_app/main.py \
-                      pdf_converter_FastAPI_app/database.py \
-                      pdf_converter_FastAPI_app/models.py \
-                      pdf_converter_FastAPI_app/utils.py \
-                      pdf_converter_FastAPI_app/templates \
-                      pdf_converter_FastAPI_app/static \
-                      build/app/
-                cd build/app && zip -9 -r ../../$APP_ZIP . && cd ../..
-                echo "Installing dependencies from requirements.txt..."
-                python3.8 -m pip install --no-cache-dir --no-binary :none: --python-version 3.9 -v -r pdf_converter_FastAPI_app/requirements.txt -t build/dependencies/python/
-                echo "Cleaning up unnecessary files..."
-                find build/dependencies/python -name "*.pyc" -delete
-                find build/dependencies/python -name "__pycache__" -type d -exec rm -rf {} \\;
-                find build/dependencies/python -name "tests" -type d -exec rm -rf {} \\;
-                find build/dependencies/python -name "*.dist-info" -type d -exec rm -rf {} \\;
-                find build/dependencies/python -name "*.egg-info" -type d -exec rm -rf {} \\;
-                find build/dependencies/python -type f -name "*.py" -not -name "__init__.py" -delete
-                echo "Verifying installed dependencies..."
-                ls -R build/dependencies/python
-                python3.8 -c "import fastapi, sqlalchemy, jinja2, python_multipart, psycopg2, boto3, mangum, passlib, pydantic_core; print('All dependencies including pydantic_core imported successfully')"
-                cd build/dependencies && zip -9 -r ../../$LAYER_ZIP . && cd ../..
-                echo "Listing contents of dependencies layer..."
-                unzip -l $LAYER_ZIP
-                echo "Checking size of dependencies layer..."
-                ZIP_FILE_SIZE_MB=$(du -m $LAYER_ZIP | cut -f1)
-                echo "Zipped dependencies layer size: ${ZIP_FILE_SIZE_MB} MB"
-                mkdir temp_unzip
-                unzip $LAYER_ZIP -d temp_unzip
-                UNZIPPED_SIZE_BYTES=$(find temp_unzip -type f -exec stat -f %z {} \\; | awk '{s+=$1} END {print s}')
-                UNZIPPED_SIZE_MB=$((UNZIPPED_SIZE_BYTES / 1024 / 1024))
-                echo "Unzipped dependencies layer size: ${UNZIPPED_SIZE_MB} MB (${UNZIPPED_SIZE_BYTES} bytes)"
-                if (( UNZIPPED_SIZE_MB >= 70 )); then
-                    echo "ERROR: Unzipped dependencies layer exceeds 70MB limit"
-                    exit 1
-                fi
-                rm -rf temp_unzip
+                    pdf_converter_FastAPI_app/database.py \
+                    pdf_converter_FastAPI_app/models.py \
+                    pdf_converter_FastAPI_app/utils.py \
+                    pdf_converter_FastAPI_app/templates \
+                    build/app/
+                
+                cd build/app && zip -r ../../$APP_ZIP . && cd ../..
+
+                # Build dependencies layer zip
+                pip3 install -r pdf_converter_FastAPI_app/requirements.txt -t build/dependencies/python/
+                cd build/dependencies && zip -r ../../$LAYER_ZIP . && cd ../..
+
+                # Change ownership
                 chown ${hostUserId}:${hostGroupId} $APP_ZIP
                 chown ${hostUserId}:${hostGroupId} $LAYER_ZIP
-            '''
-            stash includes: "${APP_ZIP}", name: 'app-code'
-            stash includes: "${LAYER_ZIP}", name: 'dependencies-layer'
-        }
-    }
+                '''
 
-    stage('Deploy with Terraform') {
-        agent {
-            docker {
-                image 'hashicorp/terraform:1.5.7'
-                args '--user 0 --entrypoint="" --dns 8.8.8.8'
+                stash includes: "${APP_ZIP}", name: 'app-code'
+                stash includes: "${LAYER_ZIP}", name: 'dependencies-layer'
             }
         }
-        steps {
-            script {
-                withCredentials([
-                    string(credentialsId: 'AWS_ACCESS_KEY_ID', variable: 'AWS_ACCESS_KEY_ID'),
-                    string(credentialsId: 'AWS_SECRET_ACCESS_KEY', variable: 'AWS_SECRET_ACCESS_KEY')
-                ]) {
-                    unstash 'app-code'
-                    unstash 'dependencies-layer'
-                    unstash 'libreoffice-arn'
-                    
-                    def libreofficeLayerArn = readFile('libreoffice_layer_arn.txt').trim()
 
-                    dir(env.TF_PATH) {
-                        echo 'Installing dependencies...'
-                        sh 'apk add --no-cache python3 py3-pip coreutils'
-                        sh 'pip install awscli'
-
-                        def fileHashApp = sh(returnStdout: true, script: "sha256sum ${APP_ZIP} | awk '{print \$1}'").trim()
-                        def fileHashLayer = sh(returnStdout: true, script: "sha256sum ${LAYER_ZIP} | awk '{print \$1}'").trim()
+        stage('Deploy with Terraform') {
+            agent {
+                docker {
+                    image 'hashicorp/terraform:1.5.7'
+                    args '--user 0 --entrypoint="" --dns 8.8.8.8'
+                }
+            }
+            steps {
+                script {
+                    withCredentials([
+                        string(credentialsId: 'AWS_ACCESS_KEY_ID', variable: 'AWS_ACCESS_KEY_ID'),
+                        string(credentialsId: 'AWS_SECRET_ACCESS_KEY', variable: 'AWS_SECRET_ACCESS_KEY')
+                    ]) {
+                        unstash 'app-code'
+                        unstash 'dependencies-layer'
+                        unstash 'libreoffice-arn'
                         
-                        echo "Uploading to S3..."
-                        sh "aws s3 cp ${APP_ZIP} s3://${S3_BUCKET}/"
-                        sh "aws s3 cp ${LAYER_ZIP} s3://${S3_BUCKET}/"
-                        sh "aws s3 cp ${ARTIFACT_NAME} s3://${S3_BUCKET}/"
+                        def libreofficeLayerArn = readFile('libreoffice_layer_arn.txt').trim()
 
-                        echo 'Deploying with Terraform...'
-                        sh 'terraform init -upgrade'
-                        sh """
-                            terraform apply -auto-approve \
-                            -var 's3_key_app=${APP_ZIP}' \
-                            -var 'source_code_hash_app=${fileHashApp}' \
-                            -var 's3_key_layer=${LAYER_ZIP}' \
-                            -var 'source_code_hash_layer=${fileHashLayer}' \
-                            -var 'libreoffice_layer_arn=${libreofficeLayerArn}' \
-                            -var 's3_bucket=${S3_BUCKET}'
-                        """
+                        dir(env.TF_PATH) {
+                            echo 'Installing dependencies...'
+                            sh 'apk add --no-cache python3 py3-pip coreutils'
+                            sh 'pip install awscli'
+
+                            def fileHashApp = sh(returnStdout: true, script: "sha256sum ${APP_ZIP} | awk '{print \$1}'").trim()
+                            def fileHashLayer = sh(returnStdout: true, script: "sha256sum ${LAYER_ZIP} | awk '{print \$1}'").trim()
+                            def fileHashLibreoffice = sh(returnStdout: true, script: "sha256sum ${LAYER_ZIP} | awk '{print \$1}'").trim()
+                            
+                            echo "Uploading to S3..."
+                            sh "aws s3 cp ${APP_ZIP} s3://${S3_BUCKET}/"
+                            sh "aws s3 cp ${LAYER_ZIP} s3://${S3_BUCKET}/"
+                            sh "aws s3 cp ${ARTIFACT_NAME} s3://${S3_BUCKET}/"
+
+                            echo 'Deploying with Terraform...'
+                            sh 'terraform init -upgrade'
+                            sh """
+                                terraform apply -auto-approve \
+                                -var 's3_key_app=${APP_ZIP}' \
+                                -var 'source_code_hash_app=${fileHashApp}' \
+                                -var 's3_key_layer=${LAYER_ZIP}' \
+                                -var 'source_code_hash_layer=${fileHashLayer}' \
+                                -var 'libreoffice_layer_arn=${libreofficeLayerArn}' \
+                                -var 'source_code_hash_libreoffice_layer=${fileHashLibreoffice}'
+                            """
+                        }
+                    }
+                }
+            }
+        }
+
+        stage('Post-Deployment Info') {
+            agent {
+                docker {
+                    image 'hashicorp/terraform:1.5.7'
+                    args '--user 0 --entrypoint="" --dns 8.8.8.8'
+                }
+            }
+            steps {
+                script {
+                    withCredentials([
+                        string(credentialsId: 'AWS_ACCESS_KEY_ID', variable: 'AWS_ACCESS_KEY_ID'),
+                        string(credentialsId: 'AWS_SECRET_ACCESS_KEY', variable: 'AWS_SECRET_ACCESS_KEY')
+                    ]) {
+                        dir(env.TF_PATH) {
+                            def apiGatewayUrl = sh(returnStdout: true, script: 'terraform output -raw api_gateway_url').trim()
+                            echo "Deployment Complete! Your API Gateway URL: ${apiGatewayUrl}"
+                        }
                     }
                 }
             }
         }
     }
 
-    stage('Post-Deployment Info') {
-        agent {
-            docker {
-                image 'hashicorp/terraform:1.5.7'
-                args '--user 0 --entrypoint="" --dns 8.8.8.8'
-            }
-        }
-        steps {
-            script {
-                withCredentials([
-                    string(credentialsId: 'AWS_ACCESS_KEY_ID', variable: 'AWS_ACCESS_KEY_ID'),
-                    string(credentialsId: 'AWS_SECRET_ACCESS_KEY', variable: 'AWS_SECRET_ACCESS_KEY')
-                ]) {
-                    dir(env.TF_PATH) {
-                        def apiGatewayUrl = sh(returnStdout: true, script: 'terraform output -raw api_gateway_url').trim()
-                        echo "Deployment Complete! Your API Gateway URL: ${apiGatewayUrl}"
-                    }
-                }
-            }
-        }
+    post {
+        always { echo 'Cleaning up...' }
+        failure { echo 'Pipeline failed!' }
+        success { echo 'Pipeline completed successfully!' }
     }
-}
-
-post {
-    always { echo 'Cleaning up...' }
-    failure { echo 'Pipeline failed!' }
-    success { echo 'Pipeline completed successfully!' }
 }

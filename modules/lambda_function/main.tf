@@ -104,8 +104,8 @@ resource "aws_lambda_function" "pdf_converter_app" {
   handler       = "main.handler"              # FAST API wrapped by Mangum
   runtime       = "python3.9" # Specify the runtime version
   role          = aws_iam_role.lambda_exec_role.arn
-  timeout       = 300 
-  memory_size   = 3008 
+  timeout       = 300 # 5 minutes timeout for processing
+  memory_size   = 3008 # 3 GB memory for processing large files 
 
   # Code from S3
   s3_bucket         = var.s3_bucket_name

@@ -25,6 +25,12 @@ pipeline {
         }
 
         stage('Build Lambda Packages') {
+            agent {
+                docker {
+                    image 'amazonlinux:2'
+                    args '--user 0 --entrypoint=""'
+                }
+            }
             steps {
                 sh '''
                     set -x

@@ -125,10 +125,10 @@ pipeline {
                     set -x
                     yum update -y
                     yum install -y amazon-linux-extras
-                    amazon-linux-extras enable python3.8
-                    yum install -y python3.8 python3.8-pip zip unzip libffi-devel gcc python3.8-devel libpq-devel
-                    ln -sf /usr/bin/python3.8 /usr/bin/python3.9
-                    ln -sf /usr/bin/pip3.8 /usr/bin/pip3.9
+                    amazon-linux-extras enable python3.9
+                    yum install -y python3.9 python3.9-pip zip unzip libffi-devel gcc python3.9-devel libpq-devel
+                    ln -sf /usr/bin/python3.9 /usr/bin/python3.9
+                    ln -sf /usr/bin/pip3.9 /usr/bin/pip3.9
                     rm -f $APP_ZIP $LAYER_ZIP
                     rm -rf build
                     mkdir -p build/app build/dependencies/python
@@ -137,12 +137,12 @@ pipeline {
                           pdf_converter_FastAPI_app/models.py \
                           pdf_converter_FastAPI_app/utils.py \
                           pdf_converter_FastAPI_app/templates \
-                          pdf_converter_FastAPI_app/static \
                           build/app/
+
                     cd build/app && zip -9 -r ../../$APP_ZIP . && cd ../..
                     echo "Installing dependencies from requirements.txt..."
-                    python3.8 -m pip install --no-cache-dir --no-binary :none: --no-deps --python-version 3.9 -v -r pdf_converter_FastAPI_app/requirements.txt -t build/dependencies/python/
-                    python3.8 -m pip install --no-cache-dir --only-binary :all: --python-version 3.9 -v psycopg2-binary==2.9.9 -t build/dependencies/python/
+                    python3.9 -m pip install --no-cache-dir --no-binary :none: --no-deps --python-version 3.9 -v -r pdf_converter_FastAPI_app/requirements.txt -t build/dependencies/python/
+                    python3.9 -m pip install --no-cache-dir --only-binary :all: --python-version 3.9 -v psycopg2-binary==2.9.9 -t build/dependencies/python/
                     echo "Cleaning up unnecessary files..."
                     find build/dependencies/python -name "*.pyc" -delete
                     find build/dependencies/python -name "__pycache__" -type d -exec rm -rf {} \\;
@@ -150,8 +150,6 @@ pipeline {
                     find build/dependencies/python -name "*.dist-info" -type d -exec rm -rf {} \\;
                     find build/dependencies/python -name "*.egg-info" -type d -exec rm -rf {} \\;
                     find build/dependencies/python -type f -name "*.py" -not -name "__init__.py" -delete
-                    rm -rf build/dependencies/python/pydantic/v1
-                    rm -rf build/dependencies/python/pydantic/deprecated
                     rm -rf build/dependencies/python/passlib/_data
                     rm -rf build/dependencies/python/dateutil/zoneinfo
                     rm -rf build/dependencies/python/uvloop
@@ -162,7 +160,7 @@ pipeline {
                     rm -rf build/dependencies/python/passlib/ext
                     echo "Verifying installed dependencies..."
                     ls -R build/dependencies/python
-                    python3.8 -c "import fastapi, sqlalchemy, jinja2, python_multipart, psycopg2, boto3, mangum, passlib, pydantic, python_jose, dotenv; print('All dependencies imported successfully')"
+                    python3.9 -c "import fastapi, sqlalchemy, jinja2, python_multipart, psycopg2, boto3, mangum, passlib, pydantic, python_jose, dotenv; print('All dependencies imported successfully')"
                     cd build/dependencies && zip -9 -r ../../$LAYER_ZIP . && cd ../..
                     echo "Listing contents of dependencies layer..."
                     unzip -l $LAYER_ZIP

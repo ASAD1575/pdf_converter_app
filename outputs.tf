@@ -63,3 +63,26 @@ output "lambda_log_group_arn" {
 output "vpc_id" {
   value = module.vpc.vpc_id
 }
+
+output "name" {
+  description = "The name of the EFS file system."
+  value       = module.efs.name
+  
+}
+
+output "LibreOfficeEFS_access_point" {
+  description = "The access point ID for the EFS file system."
+  value       = module.efs.LibreOfficeEFS_access_point
+  
+}
+
+output "file_system_dns" {
+  description = "The DNS name of the EFS file system."
+  value       = module.efs.file_system_dns
+  
+}
+
+output "efs_access_point_arn" {
+  value = module.efs.efs_access_point_arn
+  description = "The ARN of the EFS access point."
+}

@@ -34,33 +34,42 @@ pipeline {
             steps {
                 sh '''
                     set -x
+                    # All Python 3.9 dependencies are already installed.
+                    # We just need development tools and zip/unzip.
                     yum update -y
-                    yum install -y amazon-linux-extras
-                    amazon-linux-extras enable python3.9
-                    yum install -y python3.9 python3.9-pip zip unzip libffi-devel gcc python3.9-devel libpq-devel
-                    ln -sf /usr/bin/python3.9 /usr/bin/python3.9
-                    ln -sf /usr/bin/pip3.9 /usr/bin/pip3.9
+                    yum install -y zip unzip libffi-devel gcc postgresql-devel
+                    
                     rm -f $APP_ZIP $LAYER_ZIP
                     rm -rf build
                     mkdir -p build/app build/dependencies/python
+                    
+                    # Copy application code
                     cp -r pdf_converter_FastAPI_app/main.py \
                           pdf_converter_FastAPI_app/database.py \
                           pdf_converter_FastAPI_app/models.py \
                           pdf_converter_FastAPI_app/utils.py \
                           pdf_converter_FastAPI_app/templates \
+                          pdf_converter_FastAPI_app/static \
                           build/app/
-
+                    
+                    # Zip the application code
                     cd build/app && zip -9 -r ../../$APP_ZIP . && cd ../..
+                    
                     echo "Installing dependencies from requirements.txt..."
-                    python3.9 -m pip install --no-cache-dir --no-binary :none: --no-deps --python-version 3.9 -v -r pdf_converter_FastAPI_app/requirements.txt -t build/dependencies/python/
-                    python3.9 -m pip install --no-cache-dir --only-binary :all: --python-version 3.9 -v psycopg2-binary==2.9.9 -t build/dependencies/python/
+                    # Use the pre-installed Python 3.9 interpreter
+                    python3.9 -m pip install --no-cache-dir --no-binary :none: --no-deps -v -r pdf_converter_FastAPI_app/requirements.txt -t build/dependencies/python/
+                    python3.9 -m pip install --no-cache-dir --only-binary :all: -v psycopg2-binary==2.9.9 -t build/dependencies/python/
+                    
                     echo "Cleaning up unnecessary files..."
+                    # Standard cleanup of build artifacts to reduce package size
                     find build/dependencies/python -name "*.pyc" -delete
                     find build/dependencies/python -name "__pycache__" -type d -exec rm -rf {} \\;
                     find build/dependencies/python -name "tests" -type d -exec rm -rf {} \\;
                     find build/dependencies/python -name "*.dist-info" -type d -exec rm -rf {} \\;
                     find build/dependencies/python -name "*.egg-info" -type d -exec rm -rf {} \\;
                     find build/dependencies/python -type f -name "*.py" -not -name "__init__.py" -delete
+                    rm -rf build/dependencies/python/pydantic/v1
+                    rm -rf build/dependencies/python/pydantic/deprecated
                     rm -rf build/dependencies/python/passlib/_data
                     rm -rf build/dependencies/python/dateutil/zoneinfo
                     rm -rf build/dependencies/python/uvloop
@@ -69,40 +78,29 @@ pipeline {
                     rm -rf build/dependencies/python/httptools
                     rm -rf build/dependencies/python/jose/backends/native.py
                     rm -rf build/dependencies/python/passlib/ext
+                    
                     echo "Verifying installed dependencies..."
                     ls -R build/dependencies/python
                     python3.9 -c "import fastapi, sqlalchemy, jinja2, python_multipart, psycopg2, boto3, mangum, passlib, pydantic, python_jose, dotenv; print('All dependencies imported successfully')"
+                    
+                    # Zip the dependencies layer
                     cd build/dependencies && zip -9 -r ../../$LAYER_ZIP . && cd ../..
-                    echo "Listing contents of dependencies layer..."
-                    unzip -l $LAYER_ZIP
-                    echo "Checking size of dependencies layer..."
-                    ZIP_FILE_SIZE_MB=$(du -m $LAYER_ZIP | cut -f1)
-                    echo "Zipped dependencies layer size: ${ZIP_FILE_SIZE_MB} MB"
-                    mkdir temp_unzip
-                    unzip $LAYER_ZIP -d temp_unzip
-                    UNZIPPED_SIZE_BYTES=$(find temp_unzip -type f -exec stat -f %z {} \\; | awk '{s+=$1} END {print s}')
-                    UNZIPPED_SIZE_MB=$((UNZIPPED_SIZE_BYTES / 1024 / 1024))
-                    echo "Unzipped dependencies layer size: ${UNZIPPED_SIZE_MB} MB (${UNZIPPED_SIZE_BYTES} bytes)"
-                    if (( UNZIPPED_SIZE_MB >= 70 )); then
-                        echo "ERROR: Unzipped dependencies layer exceeds 70MB limit"
-                        exit 1
-                    fi
-                    rm -rf temp_unzip
-                    echo "Checking size of app package..."
-                    ZIP_FILE_SIZE_MB=$(du -m $APP_ZIP | cut -f1)
-                    echo "Zipped app package size: ${ZIP_FILE_SIZE_MB} MB"
-                    mkdir temp_unzip
-                    unzip $APP_ZIP -d temp_unzip
-                    UNZIPPED_SIZE_BYTES=$(find temp_unzip -type f -exec stat -f %z {} \\; | awk '{s+=$1} END {print s}')
-                    UNZIPPED_SIZE_MB=$((UNZIPPED_SIZE_BYTES / 1024 / 1024))
-                    echo "Unzipped app package size: ${UNZIPPED_SIZE_MB} MB (${UNZIPPED_SIZE_BYTES} bytes)"
-                    if (( UNZIPPED_SIZE_MB >= 70 )); then
-                        echo "ERROR: Unzipped app package exceeds 70MB limit"
-                        exit 1
-                    fi
-                    rm -rf temp_unzip
-                    chown ${hostUserId}:${hostGroupId} $APP_ZIP
-                    chown ${hostUserId}:${hostGroupId} $LAYER_ZIP
+                    
+                    echo "Checking sizes..."
+                    # Check the size of the zipped files to ensure they are within Lambda limits
+                    for file in $APP_ZIP $LAYER_ZIP; do
+                        echo "Zipped size of $file: $(du -m $file | cut -f1) MB"
+                        mkdir temp_unzip
+                        unzip $file -d temp_unzip
+                        UNZIPPED_SIZE_BYTES=$(find temp_unzip -type f -exec stat -c %s {} + | awk '{s+=$1} END {print s}')
+                        UNZIPPED_SIZE_MB=$((UNZIPPED_SIZE_BYTES / 1024 / 1024))
+                        echo "Unzipped size of $file: ${UNZIPPED_SIZE_MB} MB"
+                        if (( UNZIPPED_SIZE_MB >= 70 )); then
+                            echo "ERROR: Unzipped size of $file exceeds 70MB limit"
+                            exit 1
+                        fi
+                        rm -rf temp_unzip
+                    done
                 '''
                 stash includes: "${APP_ZIP}", name: 'app-code'
                 stash includes: "${LAYER_ZIP}", name: 'dependencies-layer'

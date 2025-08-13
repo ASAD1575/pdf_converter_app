@@ -8,9 +8,9 @@ pipeline {
         TF_PATH = '.'
         APP_ZIP = "app_package.zip"
         LAYER_ZIP = "dependencies_layer.zip"
-        S3_BUCKET = "pdflambdabucket1575"
-        ARTIFACT_NAME = 'libreoffice-layer.zip'
-        LAYER_NAME = 'libreoffice-layer'
+        S3_BUCKET = 'pdflambdabucket1575'
+        EC2_AMI = "ami-0de716d6197524dd9" // Example Amazon Linux 2 AMI for us-east-1, verify latest
+        EC2_KEY_PAIR = "efs_temp_key" // Must be a key pair in your AWS account
     }
 
     stages {
@@ -19,209 +19,188 @@ pipeline {
                 script {
                     env.hostUserId = sh(returnStdout: true, script: 'id -u').trim()
                     env.hostGroupId = sh(returnStdout: true, script: 'id -g').trim()
-                    echo "Jenkins user/group ID: ${env.hostUserId}:${env.hostGroupId}"
+                    echo "Jenkins user/group ID: ${env.hostUserId}:${hostGroupId}"
                 }
             }
         }
 
-        stage('Build LibreOffice Layer') {
-        agent {
-            docker {
-                image 'ubuntu:22.04'
-                args '--user 0 -v /var/run/docker.sock:/var/run/docker.sock'
-            }
-        }
-        steps {
-            echo 'Installing required tools...'
-            sh 'apt-get update && apt-get install -y curl tar zip binutils xz-utils'
-
-            echo 'Downloading LibreOffice...'
-            sh 'curl -L -o LibreOffice_deb.tar.gz "https://downloadarchive.documentfoundation.org/libreoffice/old/7.4.6.2/deb/x86_64/LibreOffice_7.4.6.2_Linux_x86-64_deb.tar.gz"'
-            sh 'tar -zxvf LibreOffice_deb.tar.gz'
-
-            echo 'Building layer...'
-            sh '''#!/bin/bash
-                set -e
-                
-                # Clean up any existing directories
-                rm -rf libreoffice-layer libreoffice-layer.zip temp_extract
-                
-                # Create clean directory structure
-                mkdir -p libreoffice-layer/libreoffice/program
-                mkdir temp_extract
-                
-                cd LibreOffice_7.4.6.2_Linux_x86-64_deb/DEBS
-                
-                REQUIRED_PACKAGES=(
-                    "libobasis7.4-core"
-                    "libreoffice7.4-writer"
-                )
-                
-                echo "Extracting LibreOffice files..."
-                for package in "${REQUIRED_PACKAGES[@]}"; do
-                    DEB_FILE=$(find . -maxdepth 1 -name "${package}_*.deb" | head -n 1)
-                    if [[ -f "$DEB_FILE" ]]; then
-                        echo "Processing: $DEB_FILE"
-                        ar p "$DEB_FILE" data.tar.xz | tar -JxC ../../temp_extract
-                    else
-                        echo "WARNING: Could not find .deb file for package: $package"
-                    fi
-                done
-                
-                cd ../..
-                
-                # Copy only essential files. This is the main change.
-                PROGRAM_DIR=$(find temp_extract -type d -name "program" | head -n 1)
-                if [[ -d "$PROGRAM_DIR" ]]; then
-                    echo "Program directory: $PROGRAM_DIR"
-                    echo "Copying essential LibreOffice files to layer..."
-                    cp -r "$PROGRAM_DIR" libreoffice-layer/libreoffice/
-                    echo "Listing copied files..."
-                    ls -l libreoffice-layer/libreoffice/program/
-                else
-                    echo "ERROR: program directory not found"
-                    exit 1
-                fi
-                
-                #
-                # IMPORTANT: Much more aggressive cleanup to reduce size
-                #
-                echo "Starting aggressive cleanup of unnecessary files..."
-                
-                cd libreoffice-layer/libreoffice/program
-                # Remove all locale files except for English (en-US), which is required
-                find . -maxdepth 1 -type d -name "locale" -exec rm -rf {} +
-                # Remove help files
-                rm -rf help
-                # Remove shared resources
-                rm -rf share
-                # Remove dictionaries and extensions
-                rm -rf dictionaries
-                rm -rf extensions
-                # Remove presets and readmes
-                rm -rf presets
-                rm -rf readmes
-                # Remove fonts and configurations that aren't critical
-                rm -rf fonts
-                rm -rf ../presets
-                
-                # Go back to the root of the layer
-                cd ../../..
-                
-                # Create the layer zip
-                cd libreoffice-layer/
-                zip -r ../libreoffice-layer.zip .
-                cd ..
-                
-                # Check sizes
-                ZIP_FILE_SIZE_MB=$(du -m libreoffice-layer.zip | cut -f1)
-                echo "Zipped layer size: ${ZIP_FILE_SIZE_MB} MB"
-                mkdir temp_unzip
-                unzip libreoffice-layer.zip -d temp_unzip
-                UNZIPPED_SIZE_MB=$(du -m temp_unzip | cut -f1)
-                echo "Unzipped layer size: ${UNZIPPED_SIZE_MB} MB"
-                
-                # Check against the actual 250MB unzipped limit
-                if (( UNZIPPED_SIZE_MB >= 250 )); then
-                    echo "ERROR: Unzipped LibreOffice layer exceeds 250MB limit"
-                    exit 1
-                fi
-                
-                # Cleanup
-                rm -rf temp_extract temp_unzip
-            '''
-            
-            sh 'ls -lh libreoffice-layer.zip'
-            sh "chown ${hostUserId}:${hostGroupId} libreoffice-layer.zip"
-            stash includes: 'libreoffice-layer.zip', name: 'libreoffice-layer'
-        }
-    }
-
-    stage('Publish Lambda Layer') {
-        agent {
-            docker {
-                image 'amazon/aws-cli:latest'
-                args '--user 0 --entrypoint=""'
-            }
-        }
-        steps {
-            script {
-                withCredentials([
-                    string(credentialsId: 'AWS_ACCESS_KEY_ID', variable: 'AWS_ACCESS_KEY_ID'),
-                    string(credentialsId: 'AWS_SECRET_ACCESS_KEY', variable: 'AWS_SECRET_ACCESS_KEY')
-                ]) {
-                    unstash 'libreoffice-layer'
-                    
-                    sh "aws s3 cp ${ARTIFACT_NAME} s3://${S3_BUCKET}/${ARTIFACT_NAME} --acl private"
-                    
-                    script {
-                        def layerArn = sh(
-                            returnStdout: true,
-                            script: """
-                                aws lambda publish-layer-version \\
-                                --region us-east-1 \\
-                                --layer-name ${LAYER_NAME} \\
-                                --content S3Bucket=${S3_BUCKET},S3Key=${ARTIFACT_NAME} \\
-                                --compatible-runtimes python3.9 \\
-                                --query "LayerVersionArn" \\
-                                --output text
-                            """
-                        ).trim()
-                        
-                        if (!layerArn || layerArn == "None") {
-                            error("Failed to retrieve Lambda layer ARN")
-                        }
-                        
-                        env.LIBREOFFICE_LAYER_ARN = layerArn
-                        writeFile file: 'libreoffice_layer_arn.txt', text: layerArn
-                    }
-                    
-                    stash includes: 'libreoffice_layer_arn.txt', name: 'libreoffice-arn'
-                }
-            }
-        }
-    }
-
-        stage('Build Lambda Packages') {
+        stage('Provision EFS, VPC and Security Group') {
             agent {
                 docker {
-                    image 'amazonlinux:2'
+                    image 'hashicorp/terraform:1.5.7'
+                    args '--user 0 --entrypoint="" --dns 8.8.8.8'
+                }
+            }
+            steps {
+                script {
+                    withCredentials([
+                        string(credentialsId: 'AWS_ACCESS_KEY_ID', variable: 'AWS_ACCESS_KEY_ID'),
+                        string(credentialsId: 'AWS_SECRET_ACCESS_KEY', variable: 'AWS_SECRET_ACCESS_KEY')
+                    ]) {
+                        dir(env.TF_PATH) {
+                            sh 'terraform init -upgrade'
+                            echo 'Applying Terraform to create VPC, Security Group, and EFS...'
+                            sh '''
+                                # The -target flags ensure these resources are created first.
+                                terraform apply -auto-approve \
+                                -target=module.vpc \
+                                -target=module.security_group \
+                                -target=module.efs \
+                                -target=module.lambda_function.aws_iam_role.lambda_role
+                            '''
+                            // After the apply completes, the outputs are now available in the state file.
+                            env.EFS_FILE_SYSTEM_ID = sh(returnStdout: true, script: 'terraform output -raw efs_file_system_id').trim()
+                            env.EFS_ACCESS_POINT_ID = sh(returnStdout: true, script: 'terraform output -raw efs_access_point_id').trim()
+                            env.EFS_SECURITY_GROUP_ID = sh(returnStdout: true, script: 'terraform output -raw efs_sg_id').trim()
+                            // Correctly retrieving the private subnet ID where EFS is located
+                            env.PRIVATE_SUBNET_ID = sh(returnStdout: true, script: 'terraform output -raw private_subnet_ids | jq -r ".[0]"').trim()
+                        }
+                    }
+                }
+            }
+        }
+
+        stage('Populate EFS with LibreOffice') {
+            agent {
+                docker {
+                    image 'amazon/aws-cli:2.11.16'
                     args '--user 0 --entrypoint=""'
                 }
             }
             steps {
+                script {
+                    withCredentials([
+                        string(credentialsId: 'AWS_ACCESS_KEY_ID', variable: 'AWS_ACCESS_KEY_ID'),
+                        string(credentialsId: 'AWS_SECRET_ACCESS_KEY', variable: 'AWS_SECRET_ACCESS_KEY'),
+                        sshUserPrivateKey(credentialsId: 'ec2-ssh-key', keyFileVariable: 'SSH_KEY_FILE')
+                    ]) {
+                        echo "Launching temporary EC2 instance in private subnet: ${env.PRIVATE_SUBNET_ID} with User Data script..."
+                        
+                        // User Data script to be executed on the EC2 instance at launch
+                        def userDataScript = """
+                            #!/bin/bash
+                            set -ex
+                            sudo yum update -y
+                            sudo yum install -y amazon-efs-utils
+                            echo "Waiting for EFS mount target..."
+                            sleep 30
+                            sudo mkdir -p /mnt/efs
+                            sudo mount -t efs -o tls,accesspoint=${env.EFS_ACCESS_POINT_ID} ${env.EFS_FILE_SYSTEM_ID}.efs.${env.AWS_DEFAULT_REGION}.amazonaws.com:/ /mnt/efs
+                            
+                            # Download LibreOffice, install, and copy to EFS
+                            wget "https://downloadarchive.documentfoundation.org/libreoffice/old/7.4.6.2/deb/x86_64/LibreOffice_7.4.6.2_Linux_x86-64_deb.tar.gz"
+                            tar -zxvf LibreOffice_7.4.6.2_Linux_x86-64_deb.tar.gz
+                            sudo yum install -y libreoffice
+                            sudo cp -r /usr/lib64/libreoffice /mnt/efs/
+                            
+                            sudo umount /mnt/efs
+                            echo "EFS population complete. Terminating instance..."
+                            aws ec2 terminate-instances --instance-ids \$(curl -s http://169.254.169.254/latest/meta-data/instance-id) --region ${env.AWS_DEFAULT_REGION}
+                        """
+
+                        def run_instance_result = sh(
+                            returnStdout: true,
+                            script: """
+                                aws ec2 run-instances \
+                                --region ${env.AWS_DEFAULT_REGION} \
+                                --image-id ${env.EC2_AMI} \
+                                --instance-type t2.micro \
+                                --key-name ${env.EC2_KEY_PAIR} \
+                                --security-group-ids ${env.EFS_SECURITY_GROUP_ID} \
+                                --subnet-id ${env.PRIVATE_SUBNET_ID} \
+                                --tag-specifications 'ResourceType=instance,Tags=[{Key=Name,Value=jenkins-efs-populator}]' \
+                                --user-data '${userDataScript}'
+                            """
+                        ).trim()
+                        env.INSTANCE_ID = sh(returnStdout: true, script: "echo '${run_instance_result}' | jq -r '.Instances[0].InstanceId'").trim()
+                        echo "Launched temporary EC2 instance ${env.INSTANCE_ID} with User Data. It will self-terminate after populating EFS."
+                    }
+                }
+            }
+        }
+
+        stage('Build Lambda Packages') {
+            steps {
                 sh '''
-                yum update -y && yum install -y python3 python3-pip zip
-                
-                rm -f $APP_ZIP $LAYER_ZIP
-                rm -rf build
-                mkdir -p build/app build/dependencies/python
-                
-                # Build app zip
-                cp -r pdf_converter_FastAPI_app/main.py \
-                    pdf_converter_FastAPI_app/database.py \
-                    pdf_converter_FastAPI_app/models.py \
-                    pdf_converter_FastAPI_app/utils.py \
-                    pdf_converter_FastAPI_app/templates \
-                    build/app/
-                
-                cd build/app && zip -r ../../$APP_ZIP . && cd ../..
-
-                # Build dependencies layer zip
-                pip3 install -r pdf_converter_FastAPI_app/requirements.txt -t build/dependencies/python/ --no-cache-dir
-                cd build/dependencies && zip -r ../../$LAYER_ZIP . && cd ../..
-
-                # Change ownership
-                chown ${hostUserId}:${hostGroupId} $APP_ZIP
-                chown ${hostUserId}:${hostGroupId} $LAYER_ZIP
+                    set -x
+                    yum update -y
+                    yum install -y amazon-linux-extras
+                    amazon-linux-extras enable python3.8
+                    yum install -y python3.8 python3.8-pip zip unzip libffi-devel gcc python3.8-devel libpq-devel
+                    ln -sf /usr/bin/python3.8 /usr/bin/python3.9
+                    ln -sf /usr/bin/pip3.8 /usr/bin/pip3.9
+                    rm -f $APP_ZIP $LAYER_ZIP
+                    rm -rf build
+                    mkdir -p build/app build/dependencies/python
+                    cp -r pdf_converter_FastAPI_app/main.py \
+                          pdf_converter_FastAPI_app/database.py \
+                          pdf_converter_FastAPI_app/models.py \
+                          pdf_converter_FastAPI_app/utils.py \
+                          pdf_converter_FastAPI_app/templates \
+                          pdf_converter_FastAPI_app/static \
+                          build/app/
+                    cd build/app && zip -9 -r ../../$APP_ZIP . && cd ../..
+                    echo "Installing dependencies from requirements.txt..."
+                    python3.8 -m pip install --no-cache-dir --no-binary :none: --no-deps --python-version 3.9 -v -r pdf_converter_FastAPI_app/requirements.txt -t build/dependencies/python/
+                    python3.8 -m pip install --no-cache-dir --only-binary :all: --python-version 3.9 -v psycopg2-binary==2.9.9 -t build/dependencies/python/
+                    echo "Cleaning up unnecessary files..."
+                    find build/dependencies/python -name "*.pyc" -delete
+                    find build/dependencies/python -name "__pycache__" -type d -exec rm -rf {} \\;
+                    find build/dependencies/python -name "tests" -type d -exec rm -rf {} \\;
+                    find build/dependencies/python -name "*.dist-info" -type d -exec rm -rf {} \\;
+                    find build/dependencies/python -name "*.egg-info" -type d -exec rm -rf {} \\;
+                    find build/dependencies/python -type f -name "*.py" -not -name "__init__.py" -delete
+                    rm -rf build/dependencies/python/pydantic/v1
+                    rm -rf build/dependencies/python/pydantic/deprecated
+                    rm -rf build/dependencies/python/passlib/_data
+                    rm -rf build/dependencies/python/dateutil/zoneinfo
+                    rm -rf build/dependencies/python/uvloop
+                    rm -rf build/dependencies/python/websockets
+                    rm -rf build/dependencies/python/watchfiles
+                    rm -rf build/dependencies/python/httptools
+                    rm -rf build/dependencies/python/jose/backends/native.py
+                    rm -rf build/dependencies/python/passlib/ext
+                    echo "Verifying installed dependencies..."
+                    ls -R build/dependencies/python
+                    python3.8 -c "import fastapi, sqlalchemy, jinja2, python_multipart, psycopg2, boto3, mangum, passlib, pydantic, python_jose, dotenv; print('All dependencies imported successfully')"
+                    cd build/dependencies && zip -9 -r ../../$LAYER_ZIP . && cd ../..
+                    echo "Listing contents of dependencies layer..."
+                    unzip -l $LAYER_ZIP
+                    echo "Checking size of dependencies layer..."
+                    ZIP_FILE_SIZE_MB=$(du -m $LAYER_ZIP | cut -f1)
+                    echo "Zipped dependencies layer size: ${ZIP_FILE_SIZE_MB} MB"
+                    mkdir temp_unzip
+                    unzip $LAYER_ZIP -d temp_unzip
+                    UNZIPPED_SIZE_BYTES=$(find temp_unzip -type f -exec stat -f %z {} \\; | awk '{s+=$1} END {print s}')
+                    UNZIPPED_SIZE_MB=$((UNZIPPED_SIZE_BYTES / 1024 / 1024))
+                    echo "Unzipped dependencies layer size: ${UNZIPPED_SIZE_MB} MB (${UNZIPPED_SIZE_BYTES} bytes)"
+                    if (( UNZIPPED_SIZE_MB >= 70 )); then
+                        echo "ERROR: Unzipped dependencies layer exceeds 70MB limit"
+                        exit 1
+                    fi
+                    rm -rf temp_unzip
+                    echo "Checking size of app package..."
+                    ZIP_FILE_SIZE_MB=$(du -m $APP_ZIP | cut -f1)
+                    echo "Zipped app package size: ${ZIP_FILE_SIZE_MB} MB"
+                    mkdir temp_unzip
+                    unzip $APP_ZIP -d temp_unzip
+                    UNZIPPED_SIZE_BYTES=$(find temp_unzip -type f -exec stat -f %z {} \\; | awk '{s+=$1} END {print s}')
+                    UNZIPPED_SIZE_MB=$((UNZIPPED_SIZE_BYTES / 1024 / 1024))
+                    echo "Unzipped app package size: ${UNZIPPED_SIZE_MB} MB (${UNZIPPED_SIZE_BYTES} bytes)"
+                    if (( UNZIPPED_SIZE_MB >= 70 )); then
+                        echo "ERROR: Unzipped app package exceeds 70MB limit"
+                        exit 1
+                    fi
+                    rm -rf temp_unzip
+                    chown ${hostUserId}:${hostGroupId} $APP_ZIP
+                    chown ${hostUserId}:${hostGroupId} $LAYER_ZIP
                 '''
-
                 stash includes: "${APP_ZIP}", name: 'app-code'
                 stash includes: "${LAYER_ZIP}", name: 'dependencies-layer'
             }
         }
 
-        stage('Deploy with Terraform') {
+        stage('Deploy Remainder with Terraform') {
             agent {
                 docker {
                     image 'hashicorp/terraform:1.5.7'
@@ -236,34 +215,26 @@ pipeline {
                     ]) {
                         unstash 'app-code'
                         unstash 'dependencies-layer'
-                        unstash 'libreoffice-arn'
                         
-                        def libreofficeLayerArn = readFile('libreoffice_layer_arn.txt').trim()
-
                         dir(env.TF_PATH) {
-                            echo 'Installing dependencies...'
                             sh 'apk add --no-cache python3 py3-pip coreutils'
                             sh 'pip install awscli --no-cache-dir'
 
-                            def fileHashApp = sh(returnStdout: true, script: "sha256sum ${APP_ZIP} | awk '{print \$1}'").trim()
-                            def fileHashLayer = sh(returnStdout: true, script: "sha256sum ${LAYER_ZIP} | awk '{print \$1}'").trim()
-                            def fileHashLibreoffice = sh(returnStdout: true, script: "sha256sum ${ARTIFACT_NAME} | awk '{print \$1}'").trim()
-                            
                             echo "Uploading to S3..."
                             sh "aws s3 cp ${APP_ZIP} s3://${S3_BUCKET}/"
                             sh "aws s3 cp ${LAYER_ZIP} s3://${S3_BUCKET}/"
-                            sh "aws s3 cp ${ARTIFACT_NAME} s3://${S3_BUCKET}/"
 
-                            echo 'Deploying with Terraform...'
+                            def fileHashApp = sh(returnStdout: true, script: "sha256sum ${APP_ZIP} | awk '{print \$1}'").trim()
+                            def fileHashLayer = sh(returnStdout: true, script: "sha256sum ${LAYER_ZIP} | awk '{print \$1}'").trim()
+                            
+                            echo 'Deploying the remaining resources with Terraform...'
                             sh 'terraform init -upgrade'
                             sh """
                                 terraform apply -auto-approve \
                                 -var 's3_key_app=${APP_ZIP}' \
                                 -var 'source_code_hash_app=${fileHashApp}' \
                                 -var 's3_key_layer=${LAYER_ZIP}' \
-                                -var 'source_code_hash_layer=${fileHashLayer}' \
-                                -var 'libreoffice_layer_arn=${libreofficeLayerArn}' \
-                                -var 'source_code_hash_libreoffice_layer=${fileHashLibreoffice}'
+                                -var 'source_code_hash_layer=${fileHashLayer}'
                             """
                         }
                     }

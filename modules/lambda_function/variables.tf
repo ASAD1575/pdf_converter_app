@@ -19,14 +19,13 @@ variable "app_security_group_id" {
   type        = string
 }
 
-variable "libreoffice_layer_arn" {
-  description = "The ARN of the LibreOffice Lambda Layer for your region and runtime. (Optional - not used in current configuration)"
-  type        = string
-  default     = ""
-  # Example: "arn:aws:lambda:eu-north-1:764866452813:layer:libreoffice-brotli:X"
-  # You need to find the correct ARN for your region and the latest version.
-  # This layer is crucial for the 'libreoffice' command to work within Lambda.
-}
+# variable "libreoffice_layer_arn" {
+#   description = "The ARN of the LibreOffice Lambda Layer for your region and runtime."
+#   type        = string
+#   # Example: "arn:aws:lambda:eu-north-1:764866452813:layer:libreoffice-brotli:X"
+#   # You need to find the correct ARN for your region and the latest version.
+#   # This layer is crucial for the 'libreoffice' command to work within Lambda.
+# }
 
 # Database connection environment variables
 variable "db_host" {
@@ -79,11 +78,11 @@ variable "s3_key_layer" {
   type = string
 }
 
-variable "source_code_hash_libreoffice_layer" {
-  description = "The base64-encoded SHA256 hash of the LibreOffice layer package. (Optional - not used in current configuration)"
-  type        = string
-  default     = ""
-}
+# variable "source_code_hash_libreoffice_layer" {
+#   description = "The base64-encoded SHA256 hash of the LibreOffice layer package."
+#   type        = string
+  
+# }
 
 variable "aws_region" {
   description = "The AWS region where the Lambda function will be deployed."
@@ -96,5 +95,12 @@ variable "aws_account_id" {
   description = "The AWS account ID where the Lambda function will be deployed."
   type        = string
   default     = "375299695019" # Replace with your actual AWS account ID
+  
+}
+
+variable "efs_name" {
+  type = string
+  description = "The name of the EFS file system."
+  default = "LibreOfficeEFS"
   
 }

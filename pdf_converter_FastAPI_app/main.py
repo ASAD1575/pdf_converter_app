@@ -28,7 +28,7 @@ S3_BUCKET_NAME = os.getenv("S3_BUCKET_NAME")
 s3_client = boto3.client("s3")
 
 # -------------------- LibreOffice Path --------------------
-LIBREOFFICE_PATH = '/opt/libreoffice/program/soffice'
+LIBREOFFICE_PATH = '/mnt/libreoffice/instdir/program/soffice.bin'
 
 # -------------------- Health Check for LibreOffice --------------------
 try:

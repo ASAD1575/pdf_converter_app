@@ -66,6 +66,15 @@ module "rds" {
   db_subnet_ids     = module.vpc.private_subnet_ids
 }
 
+module "efs" {
+  source = "./modules/efs"
+  region = "us-east-1"
+  efs_name = "LibreOfficeEFS"
+  subnet_ids = module.vpc.private_subnet_ids
+  security_group_id = module.security_group.app_sg_id
+
+}
+
 module "lambda_function" {
   source                    = "./modules/lambda_function"
   region                    = "us-east-1"
@@ -74,8 +83,8 @@ module "lambda_function" {
   app_security_group_id     = module.security_group.app_security_group_id
   # secret_key                = var.secret_key
   # image_uri                 = var.image_uri
-  # LibreOffice layer ARN is now optional - not used in current configuration
-  libreoffice_layer_arn     = var.libreoffice_layer_arn
+  # Layers
+  # libreoffice_layer_arn     = var.libreoffice_layer_arn # Ensure this is set to the correct ARN for your region and runtime
   
   # RDS Environment Variables
   db_host                   = module.rds.rds_endpoint
@@ -92,7 +101,9 @@ module "lambda_function" {
   # Ensures Terraform detects zip changes
   source_code_hash_app = var.source_code_hash_app
   source_code_hash_layer = var.source_code_hash_layer
-  source_code_hash_libreoffice_layer = var.source_code_hash_libreoffice_layer
+  # source_code_hash_libreoffice_layer = var.source_code_hash_libreoffice_layer
+
+  efs_name = "LibreOfficeEFS"
 
 }
 

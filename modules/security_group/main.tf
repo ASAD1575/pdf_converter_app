@@ -47,6 +47,15 @@ resource "aws_security_group" "app_sg" {
     cidr_blocks = ["0.0.0.0/0"] # IMPORTANT: Restrict this in production to your office/VPN IPs
   }
 
+  # Ingress rule for EFS
+  ingress {
+    description = "Allow access to EFS from the application"
+    from_port   = 2049
+    to_port     = 2049
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"] # IMPORTANT: Restrict this in production to your office/VPN IPs
+  }
+
   # Egress rule for all outbound traffic (common for applications)
   egress {
     from_port   = 0

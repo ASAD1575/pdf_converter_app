@@ -76,6 +76,32 @@ resource "aws_iam_role_policy" "lambda_s3_access" {
   })
 }
 
+resource "aws_iam_role_policy" "lambda_efs_policy" {
+  name = "${var.efs_name}-efs-access-policy"
+  role = aws_iam_role.lambda_role.id
+  policy = jsonencode({
+    Version = "2012-10-17",
+    Statement = [
+      {
+        Action = [
+          "elasticfilesystem:ClientMount",
+          "elasticfilesystem:ClientWrite",
+          "elasticfilesystem:ClientRootAccess",
+          "ec2:DescribeMountTargets",
+          "ec2:DescribeNetworkInterfaces",
+          "ec2:CreateNetworkInterface",
+          "ec2:DeleteNetworkInterface",
+          "ec2:DescribeSecurityGroups",
+          "ec2:DescribeSubnets",
+          "ec2:DescribeVpcs"
+        ],
+        Effect   = "Allow",
+        Resource = "*"
+      },
+    ],
+  })
+}
+
 # 2. Lambda Layer for Dependencies (from S3)
 # ------------------------------
 resource "aws_lambda_layer_version" "python_dependencies" {
@@ -88,14 +114,14 @@ resource "aws_lambda_layer_version" "python_dependencies" {
   source_code_hash = var.source_code_hash_layer
 }
 
-resource "aws_lambda_layer_version" "libreoffice_layer" {
-  layer_name          = "libreoffice-layer"
-  s3_bucket           = var.s3_bucket_name
-  s3_key              = "libreoffice-layer.zip"
-  compatible_runtimes = ["python3.7", "python3.8", "python3.9", "python3.10"]
-  # Helps Terraform detect updates
-  source_code_hash = var.source_code_hash_libreoffice_layer
-}
+# resource "aws_lambda_layer_version" "libreoffice_layer" {
+#   layer_name          = "libreoffice-layer"
+#   s3_bucket           = var.s3_bucket_name
+#   s3_key              = "libreoffice-layer.zip"
+#   compatible_runtimes = ["python3.7", "python3.8", "python3.9", "python3.10"]
+#   # Helps Terraform detect updates
+#   source_code_hash = var.source_code_hash_libreoffice_layer
+# }
 
 # 3. AWS Lambda Function
 resource "aws_lambda_function" "pdf_converter_app" {
@@ -121,8 +147,13 @@ resource "aws_lambda_function" "pdf_converter_app" {
   # Layers: Python dependencies + LibreOffice
   layers = [
     aws_lambda_layer_version.python_dependencies.arn,
-    var.libreoffice_layer_arn
+
   ]
+
+  file_system_config {
+    arn             = module.efs.efs_access_point_arn
+    local_mount_path = "/mnt/libreoffice"
+  }
 
   # Environment variables for the application (e.g., database connection)
   environment {

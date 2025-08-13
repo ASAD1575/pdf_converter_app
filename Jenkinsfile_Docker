@@ -46,7 +46,11 @@ pipeline {
                                 -target=module.vpc \
                                 -target=module.security_group \
                                 -target=module.efs \
-                                -target=module.lambda_function.aws_iam_role.lambda_role
+                                -target=module.lambda_function.aws_iam_role.lambda_exec_role \
+                                -var 's3_key_app=${APP_ZIP}' \
+                                -var 'source_code_hash_app=${fileHashApp}' \
+                                -var 's3_key_layer=${LAYER_ZIP}' \
+                                -var 'source_code_hash_layer=${fileHashLayer}
                             '''
                             // After the apply completes, the outputs are now available in the state file.
                             env.EFS_FILE_SYSTEM_ID = sh(returnStdout: true, script: 'terraform output -raw efs_file_system_id').trim()

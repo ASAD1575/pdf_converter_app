@@ -34,8 +34,7 @@ pipeline {
             steps {
                 sh '''
                     set -x
-                    # All Python 3.9 dependencies are already installed.
-                    # We just need development tools and zip/unzip.
+                    # Install necessary tools
                     yum update -y
                     yum install -y zip unzip libffi-devel gcc postgresql-devel
                     
@@ -44,45 +43,55 @@ pipeline {
                     mkdir -p build/app build/dependencies/python
                     
                     # Copy application code
-                    cp -r pdf_converter_FastAPI_app/main.py \
-                          pdf_converter_FastAPI_app/database.py \
-                          pdf_converter_FastAPI_app/models.py \
-                          pdf_converter_FastAPI_app/utils.py \
-                          pdf_converter_FastAPI_app/templates \
+                    cp -r pdf_converter_FastAPI_app/main.py \\
+                          pdf_converter_FastAPI_app/database.py \\
+                          pdf_converter_FastAPI_app/models.py \\
+                          pdf_converter_FastAPI_app/utils.py \\
+                          pdf_converter_FastAPI_app/templates \\
                           build/app/
                     
                     # Zip the application code
-                    cd build/app && zip -9 -r ../../$APP_ZIP . && cd ../..
+                    echo "Zipping application code..."
+                    zip -r $APP_ZIP build/app
                     
+                    chmod +x pdf_converter_FastAPI_app/requirements.txt
                     echo "Installing dependencies from requirements.txt..."
                     # Use the pre-installed Python 3.9 interpreter
-                    python3 install -r pdf_converter_FastAPI_app/requirements.txt -t build/dependencies/python
+                    python3 -m pip install --no-cache-dir -r pdf_converter_FastAPI_app/requirements.txt -t build/dependencies/python/
                     
                     echo "Cleaning up unnecessary files..."
-                    # Standard cleanup of build artifacts to reduce package size
-                    find build/dependencies/python -name "*.pyc" -delete
-                    find build/dependencies/python -name "__pycache__" -type d -exec rm -rf {} \\;
-                    find build/dependencies/python -name "tests" -type d -exec rm -rf {} \\;
-                    find build/dependencies/python -name "*.dist-info" -type d -exec rm -rf {} \\;
-                    find build/dependencies/python -name "*.egg-info" -type d -exec rm -rf {} \\;
-                    find build/dependencies/python -type f -name "*.py" -not -name "__init__.py" -delete
-                    rm -rf build/dependencies/python/pydantic/v1
-                    rm -rf build/dependencies/python/pydantic/deprecated
-                    rm -rf build/dependencies/python/passlib/_data
-                    rm -rf build/dependencies/python/dateutil/zoneinfo
-                    rm -rf build/dependencies/python/uvloop
-                    rm -rf build/dependencies/python/websockets
-                    rm -rf build/dependencies/python/watchfiles
-                    rm -rf build/dependencies/python/httptools
-                    rm -rf build/dependencies/python/jose/backends/native.py
-                    rm -rf build/dependencies/python/passlib/ext
+                    cd build/dependencies/python
                     
-                    echo "Verifying installed dependencies..."
-                    ls -R build/dependencies/python
-                    python3 -c "import fastapi, sqlalchemy, jinja2, python_multipart, psycopg2, boto3, mangum, passlib, pydantic, python_jose, dotenv; print('All dependencies imported successfully')"
+                    # More robust and aggressive cleanup commands, redirecting errors to /dev/null
+                    find . -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null
+                    find . -type f -name "*.pyc" -delete 2>/dev/null
+                    find . -type d -name "tests" -exec rm -rf {} + 2>/dev/null
+                    find . -type d -name "test" -exec rm -rf {} + 2>/dev/null
+                    find . -type d -name "docs" -exec rm -rf {} + 2>/dev/null
+                    find . -type d -name "examples" -exec rm -rf {} + 2>/dev/null
+                    find . -type f -name "*.txt" -delete 2>/dev/null
+                    find . -type f -name "*.md" -delete 2>/dev/null
+                    find . -type f -name "*.rst" -delete 2>/dev/null
+                    
+                    # Cleanup of metadata and specific package components
+                    rm -rf dist-info *.egg-info
+                    rm -rf pydantic/v1 pydantic/deprecated
+                    rm -rf passlib/_data dateutil/zoneinfo
+                    rm -rf uvloop websockets watchfiles httptools
+                    rm -rf jose/backends/native.py passlib/ext
+                    
+                    echo "Verifying contents of dependencies directory..."
+                    ls -lR .
+                    
+                    # Navigate back to the root directory for zipping
+                    cd ../../..
                     
                     # Zip the dependencies layer
-                    cd build/dependencies && zip -9 -r ../../$LAYER_ZIP . && cd ../..
+                    echo "Zipping dependencies layer..."
+                    zip -r $LAYER_ZIP build/dependencies
+                    
+                    echo "Checking for created zip files..."
+                    ls -l $APP_ZIP $LAYER_ZIP
                     
                     echo "Checking sizes..."
                     # Check the size of the zipped files to ensure they are within Lambda limits
@@ -105,40 +114,43 @@ pipeline {
             }
         }
 
-        // stage('Provision Base Infrastructure') {
-        //     agent {
-        //         docker {
-        //             image 'hashicorp/terraform:1.5.7'
-        //             args '--user 0 --entrypoint="" --dns 8.8.8.8'
-        //         }
-        //     }
-        //     steps {
-        //         script {
-        //             withCredentials([
-        //                 string(credentialsId: 'AWS_ACCESS_KEY_ID', variable: 'AWS_ACCESS_KEY_ID'),
-        //                 string(credentialsId: 'AWS_SECRET_ACCESS_KEY', variable: 'AWS_SECRET_ACCESS_KEY')
-        //             ]) {
-        //                 dir(env.TF_PATH) {
-        //                     sh 'terraform init -upgrade'
-        //                     echo 'Applying Terraform to create VPC, Security Group, and EFS...'
-        //                     // A single, non-targeted apply for infrastructure is better
-        //                     sh '''terraform apply -auto-approve \
-        //                         -var 's3_key_app=${APP_ZIP}' \
-        //                         -var 'source_code_hash_app=${fileHashApp}' \
-        //                         -var 's3_key_layer=${LAYER_ZIP}' \
-        //                         -var 'source_code_hash_layer=${fileHashLayer}'
-        //                     '''
-        //                     // After the apply completes, the outputs are now available
-        //                     env.EFS_FILE_SYSTEM_ID = sh(returnStdout: true, script: 'terraform output -raw efs_file_system_id').trim()
-        //                     env.EFS_ACCESS_POINT_ID = sh(returnStdout: true, script: 'terraform output -raw efs_access_point_id').trim()
-        //                     env.EFS_SECURITY_GROUP_ID = sh(returnStdout: true, script: 'terraform output -raw efs_sg_id').trim()
-        //                     // Correctly retrieving the private subnet ID where EFS is located
-        //                     env.PRIVATE_SUBNET_ID = sh(returnStdout: true, script: 'terraform output -raw private_subnet_ids | jq -r ".[0]"').trim()
-        //                 }
-        //             }
-        //         }
-        //     }
-        // }
+        stage('Provision Base Infrastructure') {
+            agent {
+                docker {
+                    image 'hashicorp/terraform:1.5.7'
+                    args '--user 0 --entrypoint="" --dns 8.8.8.8'
+                }
+            }
+            steps {
+                script {
+                    withCredentials([
+                        string(credentialsId: 'AWS_ACCESS_KEY_ID', variable: 'AWS_ACCESS_KEY_ID'),
+                        string(credentialsId: 'AWS_SECRET_ACCESS_KEY', variable: 'AWS_SECRET_ACCESS_KEY')
+                    ]) {
+                        dir(env.TF_PATH) {
+                            sh 'terraform init -upgrade'
+                            echo 'Applying Terraform to create VPC, Security Group, and EFS...'
+                            // A single, non-targeted apply for infrastructure is better
+                            sh '''terraform apply --target=vpc.aws_vpc.pdf_vpc \
+                                --target=security_group.aws_security_group.app_sg \
+                                --target=security_group.aws_security_group.rds_sg \
+                                --target=efs.aws_efs_file_system.libreoffice_fs -auto-approve \
+                                -var 's3_key_app=${APP_ZIP}' \
+                                -var 'source_code_hash_app=${fileHashApp}' \
+                                -var 's3_key_layer=${LAYER_ZIP}' \
+                                -var 'source_code_hash_layer=${fileHashLayer}'
+                            '''
+                            // After the apply completes, the outputs are now available
+                            env.EFS_FILE_SYSTEM_ID = sh(returnStdout: true, script: 'terraform output -raw efs_file_system_id').trim()
+                            env.EFS_ACCESS_POINT_ID = sh(returnStdout: true, script: 'terraform output -raw efs_access_point_id').trim()
+                            env.EFS_SECURITY_GROUP_ID = sh(returnStdout: true, script: 'terraform output -raw efs_sg_id').trim()
+                            // Correctly retrieving the private subnet ID where EFS is located
+                            env.PRIVATE_SUBNET_ID = sh(returnStdout: true, script: 'terraform output -raw private_subnet_ids | jq -r ".[0]"').trim()
+                        }
+                    }
+                }
+            }
+        }
 
         // stage('Populate EFS with LibreOffice') {
         //     agent {

@@ -66,14 +66,14 @@ module "rds" {
   db_subnet_ids     = module.vpc.private_subnet_ids
 }
 
-# module "efs" {
-#   source = "./modules/efs"
-#   region = "us-east-1"
-#   efs_name = "LibreOfficeEFS"
-#   subnet_ids = module.vpc.private_subnet_ids
-#   security_group_id = module.security_group.app_sg_id
+module "efs" {
+  source = "./modules/efs"
+  region = "us-east-1"
+  efs_name = "LibreOfficeEFS"
+  subnet_ids = module.vpc.private_subnet_ids
+  security_group_id = module.security_group.app_sg_id
 
-# }
+}
 
 module "lambda_function" {
   source                    = "./modules/lambda_function"

@@ -36,8 +36,8 @@ resource "aws_efs_access_point" "libreoffice_ap" {
 }
 
 resource "aws_efs_mount_target" "libreoffice_mount_target" {
+  for_each        = toset(var.subnet_ids)
   file_system_id  = aws_efs_file_system.libreoffice_fs.id
-  subnet_id       = [var.subnet_ids] 
+  subnet_id       = each.value
   security_groups = [var.security_group_id]
 }
-

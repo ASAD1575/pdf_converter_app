@@ -37,7 +37,7 @@ pipeline {
                     # All Python 3.9 dependencies are already installed.
                     # We just need development tools and zip/unzip.
                     yum update -y
-                    yum install -y zip unzip libffi-devel gcc postgresql-devel pip3
+                    yum install -y zip unzip libffi-devel gcc postgresql-devel python3-pip
                     
                     rm -f $APP_ZIP $LAYER_ZIP
                     rm -rf build
@@ -56,7 +56,7 @@ pipeline {
                     
                     echo "Installing dependencies from requirements.txt..."
                     # Use the pre-installed Python 3.9 interpreter
-                    pip3 install -r pdf_converter_FastAPI_app/requirements.txt -t build/dependencies/python
+                    pip install -r pdf_converter_FastAPI_app/requirements.txt -t build/dependencies/python
                     
                     echo "Cleaning up unnecessary files..."
                     # Standard cleanup of build artifacts to reduce package size

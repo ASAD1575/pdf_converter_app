@@ -32,3 +32,9 @@ variable "region" {
 #   description = "The base64-encoded SHA256 hash of the LibreOffice Lambda Layer package."
 #   type        = string
 # }
+
+variable "s3_bucket_name" {
+  description = "The S3 bucket name for storing and retrieving files."
+  type        = string
+  
+}

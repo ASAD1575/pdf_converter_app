@@ -128,12 +128,18 @@ pipeline {
                         string(credentialsId: 'AWS_SECRET_ACCESS_KEY', variable: 'AWS_SECRET_ACCESS_KEY')
                     ]) {
                         dir(env.TF_PATH) {
-
+                            
+                            unstash 'app-code'
+                            unstash 'dependencies-layer'
+                            
                             sh 'apk add --no-cache python3 py3-pip coreutils'
                             sh 'pip install awscli --no-cache-dir'
-                            
+
                             sh "aws s3 cp ${APP_ZIP} s3://${S3_BUCKET}/"
                             sh "aws s3 cp ${LAYER_ZIP} s3://${S3_BUCKET}/"
+                            
+                            def fileHashApp = sh(returnStdout: true, script: "sha256sum ${APP_ZIP} | awk '{print \$1}'").trim()
+                            def fileHashLayer = sh(returnStdout: true, script: "sha256sum ${LAYER_ZIP} | awk '{print \$1}'").trim()
                             
                             sh 'terraform init -upgrade'
                             echo 'Applying Terraform to create VPC, Security Group, and EFS...'
@@ -234,10 +240,6 @@ pipeline {
         //                 dir(env.TF_PATH) {
         //                     sh 'apk add --no-cache python3 py3-pip coreutils'
         //                     sh 'pip install awscli --no-cache-dir'
-
-        //                     echo "Uploading to S3..."
-        //                     sh "aws s3 cp ${APP_ZIP} s3://${S3_BUCKET}/"
-        //                     sh "aws s3 cp ${LAYER_ZIP} s3://${S3_BUCKET}/"
 
         //                     def fileHashApp = sh(returnStdout: true, script: "sha256sum ${APP_ZIP} | awk '{print \$1}'").trim()
         //                     def fileHashLayer = sh(returnStdout: true, script: "sha256sum ${LAYER_ZIP} | awk '{print \$1}'").trim()

@@ -70,7 +70,7 @@ module "efs" {
   source = "./modules/efs"
   region = "us-east-1"
   efs_name = "LibreOfficeEFS"
-  subnet_ids = module.vpc.private_subnet_ids
+  subnet_ids = [module.vpc.private_subnet_ids[0], module.vpc.private_subnet_ids[1]]
   security_group_id = module.security_group.app_sg_id
   vpc_id = module.vpc.vpc_id
 

@@ -145,7 +145,8 @@ pipeline {
                                 -var 's3_key_app=${APP_ZIP}' \
                                 -var 'source_code_hash_app=${fileHashApp}' \
                                 -var 's3_key_layer=${LAYER_ZIP}' \
-                                -var 'source_code_hash_layer=${fileHashLayer}'
+                                -var 'source_code_hash_layer=${fileHashLayer}' \
+                                -var 's3_bucket_name=${S3_BUCKET}'
                             '''
                             // After the apply completes, the outputs are now available
                             env.EFS_FILE_SYSTEM_ID = sh(returnStdout: true, script: 'terraform output -raw efs_file_system_id').trim()

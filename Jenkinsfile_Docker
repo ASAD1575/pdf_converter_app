@@ -128,6 +128,10 @@ pipeline {
                         string(credentialsId: 'AWS_SECRET_ACCESS_KEY', variable: 'AWS_SECRET_ACCESS_KEY')
                     ]) {
                         dir(env.TF_PATH) {
+
+                            sh 'apk add --no-cache python3 py3-pip coreutils'
+                            sh 'pip install awscli --no-cache-dir'
+                            
                             sh "aws s3 cp ${APP_ZIP} s3://${S3_BUCKET}/"
                             sh "aws s3 cp ${LAYER_ZIP} s3://${S3_BUCKET}/"
                             

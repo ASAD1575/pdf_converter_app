@@ -104,3 +104,7 @@ variable "efs_name" {
   default = "LibreOfficeEFS"
   
 }
+variable "efs_access_point_arn" {
+  type        = string
+  description = "The ARN of the EFS access point to mount to the Lambda function."
+}

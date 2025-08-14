@@ -49,7 +49,6 @@ pipeline {
                           pdf_converter_FastAPI_app/models.py \
                           pdf_converter_FastAPI_app/utils.py \
                           pdf_converter_FastAPI_app/templates \
-                          pdf_converter_FastAPI_app/static \
                           build/app/
                     
                     # Zip the application code
@@ -107,99 +106,99 @@ pipeline {
             }
         }
 
-        stage('Provision Base Infrastructure') {
-            agent {
-                docker {
-                    image 'hashicorp/terraform:1.5.7'
-                    args '--user 0 --entrypoint="" --dns 8.8.8.8'
-                }
-            }
-            steps {
-                script {
-                    withCredentials([
-                        string(credentialsId: 'AWS_ACCESS_KEY_ID', variable: 'AWS_ACCESS_KEY_ID'),
-                        string(credentialsId: 'AWS_SECRET_ACCESS_KEY', variable: 'AWS_SECRET_ACCESS_KEY')
-                    ]) {
-                        dir(env.TF_PATH) {
-                            sh 'terraform init -upgrade'
-                            echo 'Applying Terraform to create VPC, Security Group, and EFS...'
-                            // A single, non-targeted apply for infrastructure is better
-                            sh '''terraform apply -auto-approve \
-                                -var 's3_key_app=${APP_ZIP}' \
-                                -var 'source_code_hash_app=${fileHashApp}' \
-                                -var 's3_key_layer=${LAYER_ZIP}' \
-                                -var 'source_code_hash_layer=${fileHashLayer}'
-                            '''
-                            // After the apply completes, the outputs are now available
-                            env.EFS_FILE_SYSTEM_ID = sh(returnStdout: true, script: 'terraform output -raw efs_file_system_id').trim()
-                            env.EFS_ACCESS_POINT_ID = sh(returnStdout: true, script: 'terraform output -raw efs_access_point_id').trim()
-                            env.EFS_SECURITY_GROUP_ID = sh(returnStdout: true, script: 'terraform output -raw efs_sg_id').trim()
-                            // Correctly retrieving the private subnet ID where EFS is located
-                            env.PRIVATE_SUBNET_ID = sh(returnStdout: true, script: 'terraform output -raw private_subnet_ids | jq -r ".[0]"').trim()
-                        }
-                    }
-                }
-            }
-        }
+        // stage('Provision Base Infrastructure') {
+        //     agent {
+        //         docker {
+        //             image 'hashicorp/terraform:1.5.7'
+        //             args '--user 0 --entrypoint="" --dns 8.8.8.8'
+        //         }
+        //     }
+        //     steps {
+        //         script {
+        //             withCredentials([
+        //                 string(credentialsId: 'AWS_ACCESS_KEY_ID', variable: 'AWS_ACCESS_KEY_ID'),
+        //                 string(credentialsId: 'AWS_SECRET_ACCESS_KEY', variable: 'AWS_SECRET_ACCESS_KEY')
+        //             ]) {
+        //                 dir(env.TF_PATH) {
+        //                     sh 'terraform init -upgrade'
+        //                     echo 'Applying Terraform to create VPC, Security Group, and EFS...'
+        //                     // A single, non-targeted apply for infrastructure is better
+        //                     sh '''terraform apply -auto-approve \
+        //                         -var 's3_key_app=${APP_ZIP}' \
+        //                         -var 'source_code_hash_app=${fileHashApp}' \
+        //                         -var 's3_key_layer=${LAYER_ZIP}' \
+        //                         -var 'source_code_hash_layer=${fileHashLayer}'
+        //                     '''
+        //                     // After the apply completes, the outputs are now available
+        //                     env.EFS_FILE_SYSTEM_ID = sh(returnStdout: true, script: 'terraform output -raw efs_file_system_id').trim()
+        //                     env.EFS_ACCESS_POINT_ID = sh(returnStdout: true, script: 'terraform output -raw efs_access_point_id').trim()
+        //                     env.EFS_SECURITY_GROUP_ID = sh(returnStdout: true, script: 'terraform output -raw efs_sg_id').trim()
+        //                     // Correctly retrieving the private subnet ID where EFS is located
+        //                     env.PRIVATE_SUBNET_ID = sh(returnStdout: true, script: 'terraform output -raw private_subnet_ids | jq -r ".[0]"').trim()
+        //                 }
+        //             }
+        //         }
+        //     }
+        // }
 
-        stage('Populate EFS with LibreOffice') {
-            agent {
-                docker {
-                    image 'amazon/aws-cli:2.11.16'
-                    args '--user 0 --entrypoint=""'
-                }
-            }
-            steps {
-                script {
-                    withCredentials([
-                        string(credentialsId: 'AWS_ACCESS_KEY_ID', variable: 'AWS_ACCESS_KEY_ID'),
-                        string(credentialsId: 'AWS_SECRET_ACCESS_KEY', variable: 'AWS_SECRET_ACCESS_KEY'),
-                        sshUserPrivateKey(credentialsId: 'ec2-ssh-key', keyFileVariable: 'SSH_KEY_FILE')
-                    ]) {
-                        echo "Launching temporary EC2 instance in private subnet: ${env.PRIVATE_SUBNET_ID} with User Data script..."
+        // stage('Populate EFS with LibreOffice') {
+        //     agent {
+        //         docker {
+        //             image 'amazon/aws-cli:2.11.16'
+        //             args '--user 0 --entrypoint=""'
+        //         }
+        //     }
+        //     steps {
+        //         script {
+        //             withCredentials([
+        //                 string(credentialsId: 'AWS_ACCESS_KEY_ID', variable: 'AWS_ACCESS_KEY_ID'),
+        //                 string(credentialsId: 'AWS_SECRET_ACCESS_KEY', variable: 'AWS_SECRET_ACCESS_KEY'),
+        //                 sshUserPrivateKey(credentialsId: 'ec2-ssh-key', keyFileVariable: 'SSH_KEY_FILE')
+        //             ]) {
+        //                 echo "Launching temporary EC2 instance in private subnet: ${env.PRIVATE_SUBNET_ID} with User Data script..."
                         
-                        // User Data script to be executed on the EC2 instance at launch
-                        def userDataScript = """
-                            #!/bin/bash
-                            set -ex
-                            sudo yum update -y
-                            sudo yum install -y amazon-efs-utils
-                            echo "Waiting for EFS mount target..."
-                            sleep 30
-                            sudo mkdir -p /mnt/efs
-                            sudo mount -t efs -o tls,accesspoint=${env.EFS_ACCESS_POINT_ID} ${env.EFS_FILE_SYSTEM_ID}.efs.${env.AWS_DEFAULT_REGION}.amazonaws.com:/ /mnt/efs
+        //                 // User Data script to be executed on the EC2 instance at launch
+        //                 def userDataScript = """
+        //                     #!/bin/bash
+        //                     set -ex
+        //                     sudo yum update -y
+        //                     sudo yum install -y amazon-efs-utils
+        //                     echo "Waiting for EFS mount target..."
+        //                     sleep 30
+        //                     sudo mkdir -p /mnt/efs
+        //                     sudo mount -t efs -o tls,accesspoint=${env.EFS_ACCESS_POINT_ID} ${env.EFS_FILE_SYSTEM_ID}.efs.${env.AWS_DEFAULT_REGION}.amazonaws.com:/ /mnt/efs
                             
-                            # Download LibreOffice, install, and copy to EFS
-                            wget "https://downloadarchive.documentfoundation.org/libreoffice/old/7.4.6.2/deb/x86_64/LibreOffice_7.4.6.2_Linux_x86-64_deb.tar.gz"
-                            tar -zxvf LibreOffice_7.4.6.2_Linux_x86-64_deb.tar.gz
-                            sudo yum install -y libreoffice
-                            sudo cp -r /usr/lib64/libreoffice /mnt/efs/
+        //                     # Download LibreOffice, install, and copy to EFS
+        //                     wget "https://downloadarchive.documentfoundation.org/libreoffice/old/7.4.6.2/deb/x86_64/LibreOffice_7.4.6.2_Linux_x86-64_deb.tar.gz"
+        //                     tar -zxvf LibreOffice_7.4.6.2_Linux_x86-64_deb.tar.gz
+        //                     sudo yum install -y libreoffice
+        //                     sudo cp -r /usr/lib64/libreoffice /mnt/efs/
                             
-                            sudo umount /mnt/efs
-                            echo "EFS population complete. Terminating instance..."
-                            aws ec2 terminate-instances --instance-ids \$(curl -s http://169.254.169.254/latest/meta-data/instance-id) --region ${env.AWS_DEFAULT_REGION}
-                        """
+        //                     sudo umount /mnt/efs
+        //                     echo "EFS population complete. Terminating instance..."
+        //                     aws ec2 terminate-instances --instance-ids \$(curl -s http://169.254.169.254/latest/meta-data/instance-id) --region ${env.AWS_DEFAULT_REGION}
+        //                 """
 
-                        def run_instance_result = sh(
-                            returnStdout: true,
-                            script: """
-                                aws ec2 run-instances \
-                                --region ${env.AWS_DEFAULT_REGION} \
-                                --image-id ${env.EC2_AMI} \
-                                --instance-type t2.micro \
-                                --key-name ${env.EC2_KEY_PAIR} \
-                                --security-group-ids ${env.EFS_SECURITY_GROUP_ID} \
-                                --subnet-id ${env.PRIVATE_SUBNET_ID} \
-                                --tag-specifications 'ResourceType=instance,Tags=[{Key=Name,Value=jenkins-efs-populator}]' \
-                                --user-data '${userDataScript}'
-                            """
-                        ).trim()
-                        env.INSTANCE_ID = sh(returnStdout: true, script: "echo '${run_instance_result}' | jq -r '.Instances[0].InstanceId'").trim()
-                        echo "Launched temporary EC2 instance ${env.INSTANCE_ID} with User Data. It will self-terminate after populating EFS."
-                    }
-                }
-            }
-        }
+        //                 def run_instance_result = sh(
+        //                     returnStdout: true,
+        //                     script: """
+        //                         aws ec2 run-instances \
+        //                         --region ${env.AWS_DEFAULT_REGION} \
+        //                         --image-id ${env.EC2_AMI} \
+        //                         --instance-type t2.micro \
+        //                         --key-name ${env.EC2_KEY_PAIR} \
+        //                         --security-group-ids ${env.EFS_SECURITY_GROUP_ID} \
+        //                         --subnet-id ${env.PRIVATE_SUBNET_ID} \
+        //                         --tag-specifications 'ResourceType=instance,Tags=[{Key=Name,Value=jenkins-efs-populator}]' \
+        //                         --user-data '${userDataScript}'
+        //                     """
+        //                 ).trim()
+        //                 env.INSTANCE_ID = sh(returnStdout: true, script: "echo '${run_instance_result}' | jq -r '.Instances[0].InstanceId'").trim()
+        //                 echo "Launched temporary EC2 instance ${env.INSTANCE_ID} with User Data. It will self-terminate after populating EFS."
+        //             }
+        //         }
+        //     }
+        // }
 
         stage('Deploy Remainder with Terraform') {
             agent {

@@ -78,7 +78,7 @@ resource "aws_iam_role_policy" "lambda_s3_access" {
 
 resource "aws_iam_role_policy" "lambda_efs_policy" {
   name = "${var.efs_name}-efs-access-policy"
-  role = aws_iam_role.lambda_role.id
+  role = aws_iam_role.lambda_exec_role.id
   policy = jsonencode({
     Version = "2012-10-17",
     Statement = [
@@ -151,7 +151,7 @@ resource "aws_lambda_function" "pdf_converter_app" {
   ]
 
   file_system_config {
-    arn             = module.efs.efs_access_point_arn
+    arn             = module.efs.libreoffice_ap.arn
     local_mount_path = "/mnt/libreoffice"
   }
 

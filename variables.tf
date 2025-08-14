@@ -33,8 +33,3 @@ variable "region" {
 #   type        = string
 # }
 
-variable "s3_bucket_name" {
-  description = "The S3 bucket name for storing and retrieving files."
-  type        = string
-  
-}

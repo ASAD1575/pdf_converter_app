@@ -110,6 +110,7 @@ pipeline {
                     done
                 '''
                 sh 'chmod 777 "${APP_ZIP}" "${LAYER_ZIP}"'
+                sh 'chown ${hostUserId}:${hostGroupId} $APP_ZIP $LAYER_ZIP'
                 stash includes: "${APP_ZIP}", name: 'app-code'
                 stash includes: "${LAYER_ZIP}", name: 'dependencies-layer'
             }

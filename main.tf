@@ -95,7 +95,7 @@ module "lambda_function" {
   db_user                   = module.rds.db_username
   
   # S3 (Code and Layer Sources)
-  s3_bucket_name      = var.s3_bucket_name
+  s3_bucket_name      = "pdflambdabucket1575"
   s3_key_app          = var.s3_key_app
   s3_key_layer        = var.s3_key_layer
 

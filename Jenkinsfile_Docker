@@ -128,7 +128,11 @@ pipeline {
                         string(credentialsId: 'AWS_SECRET_ACCESS_KEY', variable: 'AWS_SECRET_ACCESS_KEY')
                     ]) {
                         dir(env.TF_PATH) {
-                        
+                            // --- ADD THESE LINES ---
+                            unstash 'app-code'
+                            unstash 'dependencies-layer'
+                            // --- END OF ADDITION ---
+                            
                             sh 'apk add --no-cache python3 py3-pip coreutils'
                             sh 'pip install awscli --no-cache-dir'
 
@@ -140,19 +144,16 @@ pipeline {
                             
                             sh 'terraform init -upgrade'
                             echo 'Applying Terraform to create VPC, Security Group, and EFS...'
-                            // A single, non-targeted apply for infrastructure is better
                             sh '''terraform apply -auto-approve \
                                 -var 's3_key_app=${APP_ZIP}' \
                                 -var 'source_code_hash_app=${fileHashApp}' \
                                 -var 's3_key_layer=${LAYER_ZIP}' \
-                                -var 'source_code_hash_layer=${fileHashLayer}' \
-                                -var 's3_bucket_name=${S3_BUCKET}'
+                                -var 'source_code_hash_layer=${fileHashLayer}'
+                                
                             '''
-                            // After the apply completes, the outputs are now available
                             env.EFS_FILE_SYSTEM_ID = sh(returnStdout: true, script: 'terraform output -raw efs_file_system_id').trim()
                             env.EFS_ACCESS_POINT_ID = sh(returnStdout: true, script: 'terraform output -raw efs_access_point_id').trim()
                             env.EFS_SECURITY_GROUP_ID = sh(returnStdout: true, script: 'terraform output -raw efs_sg_id').trim()
-                            // Correctly retrieving the private subnet ID where EFS is located
                             env.PRIVATE_SUBNET_ID = sh(returnStdout: true, script: 'terraform output -raw private_subnet_ids | jq -r ".[0]"').trim()
                         }
                     }

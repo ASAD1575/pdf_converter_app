@@ -25,6 +25,5 @@ variable "security_group_id" {
 
 variable "vpc_id" {
   type = string
-  description = "The VPC ID where the EFS file system will be created."
-  
+  description = "The ID of the VPC where the EFS mount targets will be created."
 }

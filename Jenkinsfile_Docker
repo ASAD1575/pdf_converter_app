@@ -128,6 +128,9 @@ pipeline {
                         string(credentialsId: 'AWS_SECRET_ACCESS_KEY', variable: 'AWS_SECRET_ACCESS_KEY')
                     ]) {
                         dir(env.TF_PATH) {
+                            sh "aws s3 cp ${APP_ZIP} s3://${S3_BUCKET}/"
+                            sh "aws s3 cp ${LAYER_ZIP} s3://${S3_BUCKET}/"
+                            
                             sh 'terraform init -upgrade'
                             echo 'Applying Terraform to create VPC, Security Group, and EFS...'
                             // A single, non-targeted apply for infrastructure is better

@@ -27,7 +27,7 @@ pipeline {
         stage('Build Lambda Packages') {
             agent {
                 docker {
-                    image 'public.ecr.aws/lambda/python:3.9'
+                    image 'public.ecr.aws/lambda/python:3.12'
                     args '--user 0 --entrypoint=""'
                 }
             }
@@ -35,8 +35,8 @@ pipeline {
                 sh '''
                     set -x
                     # Install necessary tools
-                    yum update -y
-                    yum install -y zip unzip libffi-devel gcc postgresql-devel
+                    dnf update -y
+                    dnf install -y zip unzip libffi-devel gcc postgresql-devel
                     
                     rm -f $APP_ZIP $LAYER_ZIP
                     rm -rf build

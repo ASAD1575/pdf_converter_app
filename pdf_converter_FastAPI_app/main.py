@@ -193,7 +193,9 @@ async def login_form(request: Request):
 async def login(request: Request, username: str = Form(...), password: str = Form(...)):
     if verify_user(username, password):
         # Use request.url_for to get the correct URL with the root_path
-        return RedirectResponse(request.url_for("dashboard", username=username), status_code=status.HTTP_303_SEE_OTHER)
+        redirect_url = f"{API_GATEWAY_BASE_PATH}/dashboard?username={username}"
+        return RedirectResponse(redirect_url, status_code=status.HTTP_303_SEE_OTHER)
+        # return RedirectResponse(request.url_for("dashboard", username=username), status_code=status.HTTP_303_SEE_OTHER)
     return templates.TemplateResponse("login.html", {"request": request, "error": "Invalid username or password", "root_path": API_GATEWAY_BASE_PATH})
 
 @app.get("/forgot_password", response_class=HTMLResponse)

@@ -20,3 +20,9 @@ output "efs_file_system_id" {
   description = "The ID of the EFS file system."
   
 }
+
+output "efs_access_point_id" {
+  value = aws_efs_access_point.libreoffice_ap.id
+  description = "The ID of the EFS access point."
+  
+}

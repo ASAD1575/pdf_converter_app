@@ -70,12 +70,6 @@ output "name" {
   
 }
 
-output "LibreOfficeEFS_access_point" {
-  description = "The access point ID for the EFS file system."
-  value       = module.efs.LibreOfficeEFS_access_point
-  
-}
-
 output "file_system_dns" {
   description = "The DNS name of the EFS file system."
   value       = module.efs.file_system_dns

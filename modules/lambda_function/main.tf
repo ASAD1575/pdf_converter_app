@@ -165,7 +165,7 @@ resource "aws_lambda_function" "pdf_converter_app" {
       DB_PORT     = var.db_port
       S3_BUCKET_NAME = var.s3_bucket_name
       # SERCRET_KEY = var.secret_key
-      FASTAPI_ROOT_PATH = "/prod"
+      API_GATEWAY_BASE_PATH = "/prod"
       PATH             = "/opt/libreoffice/program:/usr/bin:/bin"
       LD_LIBRARY_PATH  = "/opt/libreoffice/program:/usr/lib:/lib"
       HOME             = "/tmp"

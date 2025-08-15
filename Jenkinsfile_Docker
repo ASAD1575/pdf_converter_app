@@ -165,10 +165,10 @@ pipeline {
                                  -var 's3_key_layer=${LAYER_ZIP}' \
                                  -var 'source_code_hash_layer=${fileHashLayer}'
                              """
-                            env.EFS_FILE_SYSTEM_ID = sh(returnStdout: true, script: 'terraform output -raw efs_file_system_id').trim()
-                            env.EFS_ACCESS_POINT_ID = sh(returnStdout: true, script: 'terraform output -raw efs_access_point_id').trim()
-                            env.EFS_SECURITY_GROUP_ID = sh(returnStdout: true, script: 'terraform output -raw efs_sg_id').trim()
-                            env.PRIVATE_SUBNET_ID = sh(returnStdout: true, script: 'terraform output -raw private_subnet_ids | jq -r ".[0]"').trim()
+                            // env.EFS_FILE_SYSTEM_ID = sh(returnStdout: true, script: 'terraform output -raw efs_file_system_id').trim()
+                            // env.EFS_ACCESS_POINT_ID = sh(returnStdout: true, script: 'terraform output -raw efs_access_point_id').trim()
+                            // env.EFS_SECURITY_GROUP_ID = sh(returnStdout: true, script: 'terraform output -raw efs_sg_id').trim()
+                            // env.PRIVATE_SUBNET_ID = sh(returnStdout: true, script: 'terraform output -raw private_subnet_ids | jq -r ".[0]"').trim()
                         }
                     }
                 }

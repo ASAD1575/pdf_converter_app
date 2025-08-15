@@ -70,7 +70,7 @@ module "efs" {
   source = "./modules/efs"
   region = "us-east-1"
   efs_name = "LibreOfficeEFS"
-  subnet_ids = [module.vpc.private_subnet_ids[0], module.vpc.private_subnet_ids[1]]
+  subnet_ids = module.vpc.private_subnet_ids
   security_group_id = module.security_group.app_sg_id
   vpc_id = module.vpc.vpc_id
 
@@ -106,7 +106,7 @@ module "lambda_function" {
 
   efs_name = "LibreOfficeEFS"
   efs_access_point_arn = module.efs.efs_access_point_arn
-  
+
 }
 
 # Add the API Gateway module

@@ -108,7 +108,7 @@ resource "aws_lambda_layer_version" "python_dependencies" {
   layer_name          = "${var.function_name}-dependencies"
   s3_bucket           = var.s3_bucket_name
   s3_key              = var.s3_key_layer
-  compatible_runtimes = ["python3.9"]
+  compatible_runtimes = ["python3.12"]
 
   # Helps Terraform detect updates
   source_code_hash = var.source_code_hash_layer
@@ -128,7 +128,7 @@ resource "aws_lambda_function" "pdf_converter_app" {
   function_name = var.function_name
   # package_type  = "Image"
   handler       = "main.handler"              # FAST API wrapped by Mangum
-  runtime       = "python3.9" # Specify the runtime version
+  runtime       = "python3.12" # Specify the runtime version
   role          = aws_iam_role.lambda_exec_role.arn
   timeout       = 300 # 5 minutes timeout for processing
   memory_size   = 3008 # 3 GB memory for processing large files 

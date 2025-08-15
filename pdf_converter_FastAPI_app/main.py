@@ -19,7 +19,7 @@ logger.setLevel(logging.INFO)
 
 # -------------------- FastAPI App --------------------
 # Removed root_path="/prod". Mangum handles this automatically with API Gateway.
-app = FastAPI()
+app = FastAPI(root_path=FASTAPI_ROOT_PATH)
 templates = Jinja2Templates(directory="templates")
 # app.mount("/static", StaticFiles(directory="static"), name="static")
 
@@ -170,12 +170,12 @@ async def download_pdf(file_id: str):
 # -------------------- Authentication & Dashboard Endpoints --------------------
 @app.get("/register", response_class=HTMLResponse)
 async def register_form(request: Request):
-    root_path = request.scope.get("root_path", "prod/")
+    root_path = request.scope.get("root_path", "")
     return templates.TemplateResponse("register.html", {"request": request, "root_path": root_path})
 
 @app.post("/register")
 async def register_user(request: Request, username: str = Form(...), email: str = Form(...), password: str = Form(...)):
-    root_path = request.scope.get("root_path", "prod/")
+    root_path = request.scope.get("root_path", "")
     success, message = create_user(username, email, password)
     if success:
         return RedirectResponse(f"{root_path}/?message=registration_success", status_code=status.HTTP_303_SEE_OTHER)
@@ -183,27 +183,27 @@ async def register_user(request: Request, username: str = Form(...), email: str 
 
 @app.get("/", response_class=HTMLResponse)
 async def login_form(request: Request):
-    root_path = request.scope.get("root_path", "prod/")
+    root_path = request.scope.get("root_path", "")
     message = request.query_params.get("message")
     error = request.query_params.get("error")
     return templates.TemplateResponse("login.html", {"request": request, "root_path": root_path, "message": message, "error": error})
 
 @app.post("/", response_class=HTMLResponse)
 async def login(request: Request, username: str = Form(...), password: str = Form(...)):
-    root_path = request.scope.get("root_path", "prod/")
+    root_path = request.scope.get("root_path", "")
     if verify_user(username, password):
         return RedirectResponse(f"{root_path}/dashboard?username={username}", status_code=status.HTTP_303_SEE_OTHER)
     return templates.TemplateResponse("login.html", {"request": request, "root_path": root_path, "error": "Invalid username or password"})
 
 @app.get("/forgot_password", response_class=HTMLResponse)
 async def forgot_password_page(request: Request):
-    root_path = request.scope.get("root_path", "prod/")
+    root_path = request.scope.get("root_path", "")
     error = request.query_params.get("error")
     return templates.TemplateResponse("forgot_password.html", {"request": request, "root_path": root_path, "error": error})
 
 @app.post("/reset_password_direct")
 async def reset_password_direct(request: Request, username_or_email: str = Form(...), new_password: str = Form(...), confirm_new_password: str = Form(...)):
-    root_path = request.scope.get("root_path", "prod/")
+    root_path = request.scope.get("root_path", "")
     if new_password != confirm_new_password:
         return templates.TemplateResponse("forgot_password.html", {"request": request, "root_path": root_path, "error": "Passwords do not match."})
     success, message = update_user_password(username_or_email, new_password)
@@ -213,9 +213,9 @@ async def reset_password_direct(request: Request, username_or_email: str = Form(
 
 @app.get("/dashboard", response_class=HTMLResponse)
 async def dashboard(request: Request, username: str = Query("Guest")):
-    root_path = request.scope.get("root_path", "prod/")
+    root_path = request.scope.get("root_path", "")
     user = {"username": username}
     return templates.TemplateResponse("dashboard.html", {"request": request, "root_path": root_path, "user": user})
 
 # -------------------- Lambda Entry Point --------------------
-handler = Mangum(app)
+handler = Mangum(app, api_gateway_base_path=FASTAPI_ROOT_PATH)

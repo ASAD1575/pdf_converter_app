@@ -67,13 +67,6 @@ pipeline {
                     # More robust and aggressive cleanup commands, redirecting errors to /dev/null
                     find . -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null
                     find . -type f -name "*.pyc" -delete 2>/dev/null
-                    find . -type d -name "tests" -exec rm -rf {} + 2>/dev/null
-                    find . -type d -name "test" -exec rm -rf {} + 2>/dev/null
-                    find . -type d -name "docs" -exec rm -rf {} + 2>/dev/null
-                    find . -type d -name "examples" -exec rm -rf {} + 2>/dev/null
-                    find . -type f -name "*.txt" -delete 2>/dev/null
-                    find . -type f -name "*.md" -delete 2>/dev/null
-                    find . -type f -name "*.rst" -delete 2>/dev/null
                     
                     # Cleanup of metadata and specific package components
                     rm -rf dist-info *.egg-info

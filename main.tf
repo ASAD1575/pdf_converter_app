@@ -74,7 +74,7 @@ module "efs" {
   security_group_id = module.security_group.app_sg_id
   vpc_id = module.vpc.vpc_id
 
-  depends_on = [module.vpc]
+  # depends_on = [module.vpc]
 
 }
 

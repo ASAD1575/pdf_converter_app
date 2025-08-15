@@ -174,7 +174,7 @@ async def download_pdf(file_id: str):
 # -------------------- Authentication & Dashboard Endpoints --------------------
 @app.get("/register", response_class=HTMLResponse)
 async def register_form(request: Request):
-    return templates.TemplateResponse("register.html", {"request": request})
+    return templates.TemplateResponse("register.html", {"request": request, "root_path": API_GATEWAY_BASE_PATH})
 
 @app.post("/register")
 async def register_user(request: Request, username: str = Form(...), email: str = Form(...), password: str = Form(...)):
@@ -187,33 +187,33 @@ async def register_user(request: Request, username: str = Form(...), email: str 
 async def login_form(request: Request):
     message = request.query_params.get("message")
     error = request.query_params.get("error")
-    return templates.TemplateResponse("login.html", {"request": request, "message": message, "error": error})
+    return templates.TemplateResponse("login.html", {"request": request, "message": message, "error": error, "root_path": API_GATEWAY_BASE_PATH})
 
 @app.post("/", response_class=HTMLResponse)
 async def login(request: Request, username: str = Form(...), password: str = Form(...)):
     if verify_user(username, password):
         # Use request.url_for to get the correct URL with the root_path
         return RedirectResponse(request.url_for("dashboard", username=username), status_code=status.HTTP_303_SEE_OTHER)
-    return templates.TemplateResponse("login.html", {"request": request, "error": "Invalid username or password"})
+    return templates.TemplateResponse("login.html", {"request": request, "error": "Invalid username or password", "root_path": API_GATEWAY_BASE_PATH})
 
 @app.get("/forgot_password", response_class=HTMLResponse)
 async def forgot_password_page(request: Request):
     error = request.query_params.get("error")
-    return templates.TemplateResponse("forgot_password.html", {"request": request, "error": error})
+    return templates.TemplateResponse("forgot_password.html", {"request": request, "error": error, "root_path": API_GATEWAY_BASE_PATH})
 
 @app.post("/reset_password_direct")
 async def reset_password_direct(request: Request, username_or_email: str = Form(...), new_password: str = Form(...), confirm_new_password: str = Form(...)):
     if new_password != confirm_new_password:
-        return templates.TemplateResponse("forgot_password.html", {"request": request, "error": "Passwords do not match."})
+        return templates.TemplateResponse("forgot_password.html", {"request": request, "error": "Passwords do not match.", "root_path": API_GATEWAY_BASE_PATH})
     success, message = update_user_password(username_or_email, new_password)
     if success:
         return RedirectResponse(request.url_for("login_form").include_query_params(message="password_reset_success"), status_code=status.HTTP_303_SEE_OTHER)
-    return templates.TemplateResponse("forgot_password.html", {"request": request, "error": message})
+    return templates.TemplateResponse("forgot_password.html", {"request": request, "error": message, "root_path": API_GATEWAY_BASE_PATH})
 
 @app.get("/dashboard", response_class=HTMLResponse, name="dashboard")
 async def dashboard(request: Request, username: str = Query("Guest")):
     user = {"username": username}
-    return templates.TemplateResponse("dashboard.html", {"request": request, "user": user})
+    return templates.TemplateResponse("dashboard.html", {"request": request, "user": user, "root_path": API_GATEWAY_BASE_PATH})
 
 # -------------------- Lambda Entry Point --------------------
 # Pass the api_gateway_base_path to Mangum to correctly handle the stage prefix.

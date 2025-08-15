@@ -8,7 +8,7 @@ import boto3
 from fastapi import FastAPI, Request, Form, UploadFile, File, Query
 from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
-from fastapi.staticfiles import StaticFiles
+# from fastapi.staticfiles import StaticFiles
 from starlette import status
 from mangum import Mangum
 from database import create_user, verify_user, get_user_by_email, get_user_by_username, update_user_password
@@ -21,7 +21,7 @@ logger.setLevel(logging.INFO)
 # Removed root_path="/prod". Mangum handles this automatically with API Gateway.
 app = FastAPI()
 templates = Jinja2Templates(directory="templates")
-app.mount("/static", StaticFiles(directory="static"), name="static")
+# app.mount("/static", StaticFiles(directory="static"), name="static")
 
 # -------------------- S3 Setup --------------------
 S3_BUCKET_NAME = os.getenv("S3_BUCKET_NAME")

@@ -52,7 +52,9 @@ pipeline {
                     
                     # Zip the application code
                     echo "Zipping application code..."
-                    zip -r $APP_ZIP build/app
+                    cd build/app/
+                    zip -r ../../$APP_ZIP .
+                    cd ../../
                     
                     chmod +x pdf_converter_FastAPI_app/requirements.txt
                     echo "Installing dependencies from requirements.txt..."
@@ -88,7 +90,9 @@ pipeline {
                     
                     # Zip the dependencies layer
                     echo "Zipping dependencies layer..."
-                    zip -r $LAYER_ZIP build/dependencies
+                    cd build/dependencies/
+                    zip -r ../../$LAYER_ZIP .
+                    cd ../../
                     
                     echo "Checking for created zip files..."
                     ls -l $APP_ZIP $LAYER_ZIP
@@ -143,7 +147,22 @@ pipeline {
                             
                             def fileHashApp = sh(returnStdout: true, script: "sha256sum ${APP_ZIP} | awk '{print \$1}'").trim()
                             def fileHashLayer = sh(returnStdout: true, script: "sha256sum ${LAYER_ZIP} | awk '{print \$1}'").trim()
-                            
+
+                            echo 'fileHashApp: ' + fileHashApp
+                            echo 'fileHashLayer: ' + fileHashLayer
+
+                            // sh '''
+                            //     aws dynamodb create-table \
+                            //         --table-name terraform-state-lock-table \
+                            //         --attribute-definitions \
+                            //         AttributeName=LockID,AttributeType=S \
+                            //         --key-schema \
+                            //         AttributeName=LockID,KeyType=HASH \
+                            //         --provisioned-throughput \
+                            //         ReadCapacityUnits=1,WriteCapacityUnits=1
+                            // '''
+                            // sh 'terraform init -migrate-state'
+                            // sh 'terraform init -reconfigure'
                             sh 'terraform init -upgrade'
                             echo 'Applying Terraform to create VPC, Security Group, and EFS...'
                             sh """
@@ -163,102 +182,102 @@ pipeline {
             }
         }
 
-        stage('Populate EFS with LibreOffice') {
-            agent {
-                docker {
-                    image 'amazon/aws-cli:2.11.16'
-                    args '--user 0 --entrypoint=""'
-                }
-            }
-            steps {
-                script {
-                    withCredentials([
-                        string(credentialsId: 'AWS_ACCESS_KEY_ID', variable: 'AWS_ACCESS_KEY_ID'),
-                        string(credentialsId: 'AWS_SECRET_ACCESS_KEY', variable: 'AWS_SECRET_ACCESS_KEY'),
-                        sshUserPrivateKey(credentialsId: 'ec2-ssh-key', keyFileVariable: 'SSH_KEY_FILE')
-                    ]) {
-                        echo "Launching temporary EC2 instance in private subnet: ${env.PRIVATE_SUBNET_ID} with User Data script..."
+        // stage('Populate EFS with LibreOffice') {
+        //     agent {
+        //         docker {
+        //             image 'amazon/aws-cli:2.11.16'
+        //             args '--user 0 --entrypoint=""'
+        //         }
+        //     }
+        //     steps {
+        //         script {
+        //             withCredentials([
+        //                 string(credentialsId: 'AWS_ACCESS_KEY_ID', variable: 'AWS_ACCESS_KEY_ID'),
+        //                 string(credentialsId: 'AWS_SECRET_ACCESS_KEY', variable: 'AWS_SECRET_ACCESS_KEY'),
+        //                 sshUserPrivateKey(credentialsId: 'ec2-ssh-key', keyFileVariable: 'SSH_KEY_FILE')
+        //             ]) {
+        //                 echo "Launching temporary EC2 instance in private subnet: ${env.PRIVATE_SUBNET_ID} with User Data script..."
                         
-                        // User Data script to be executed on the EC2 instance at launch
-                        def userDataScript = """
-                            #!/bin/bash
-                            set -ex
-                            sudo yum update -y
-                            sudo yum install -y amazon-efs-utils
-                            echo "Waiting for EFS mount target..."
-                            sleep 30
-                            sudo mkdir -p /mnt/efs
-                            sudo mount -t efs -o tls,accesspoint=${env.EFS_ACCESS_POINT_ID} ${env.EFS_FILE_SYSTEM_ID}.efs.${env.AWS_DEFAULT_REGION}.amazonaws.com:/ /mnt/efs
+        //                 // User Data script to be executed on the EC2 instance at launch
+        //                 def userDataScript = """
+        //                     #!/bin/bash
+        //                     set -ex
+        //                     sudo yum update -y
+        //                     sudo yum install -y amazon-efs-utils
+        //                     echo "Waiting for EFS mount target..."
+        //                     sleep 30
+        //                     sudo mkdir -p /mnt/efs
+        //                     sudo mount -t efs -o tls,accesspoint=${env.EFS_ACCESS_POINT_ID} ${env.EFS_FILE_SYSTEM_ID}.efs.${env.AWS_DEFAULT_REGION}.amazonaws.com:/ /mnt/efs
                             
-                            # Download LibreOffice, install, and copy to EFS
-                            wget "https://download.documentfoundation.org/libreoffice/stable/25.2.5/deb/x86_64/LibreOffice_25.2.5_Linux_x86-64_deb_sdk.tar.gz"
-                            tar -zxvf LibreOffice_25.2.5_Linux_x86-64_deb_sdk.tar.gz
-                            sudo yum install -y libreoffice
-                            sudo cp -r /usr/lib64/libreoffice /mnt/efs/
+        //                     # Download LibreOffice, install, and copy to EFS
+        //                     wget "https://download.documentfoundation.org/libreoffice/stable/25.2.5/deb/x86_64/LibreOffice_25.2.5_Linux_x86-64_deb_sdk.tar.gz"
+        //                     tar -zxvf LibreOffice_25.2.5_Linux_x86-64_deb_sdk.tar.gz
+        //                     sudo yum install -y libreoffice
+        //                     sudo cp -r /usr/lib64/libreoffice /mnt/efs/
                             
-                            sudo umount /mnt/efs
-                            echo "EFS population complete. Terminating instance..."
-                            aws ec2 terminate-instances --instance-ids \$(curl -s http://169.254.169.254/latest/meta-data/instance-id) --region ${env.AWS_DEFAULT_REGION}
-                        """
+        //                     sudo umount /mnt/efs
+        //                     echo "EFS population complete. Terminating instance..."
+        //                     aws ec2 terminate-instances --instance-ids \$(curl -s http://169.254.169.254/latest/meta-data/instance-id) --region ${env.AWS_DEFAULT_REGION}
+        //                 """
 
-                        def run_instance_result = sh(
-                            returnStdout: true,
-                            script: """
-                                aws ec2 run-instances \
-                                --region ${env.AWS_DEFAULT_REGION} \
-                                --image-id ${env.EC2_AMI} \
-                                --instance-type t2.micro \
-                                --key-name ${env.EC2_KEY_PAIR} \
-                                --security-group-ids ${env.EFS_SECURITY_GROUP_ID} \
-                                --subnet-id ${env.PRIVATE_SUBNET_ID} \
-                                --tag-specifications 'ResourceType=instance,Tags=[{Key=Name,Value=jenkins-efs-populator}]' \
-                                --user-data '${userDataScript}'
-                            """
-                        ).trim()
-                        env.INSTANCE_ID = sh(returnStdout: true, script: "echo '${run_instance_result}' | jq -r '.Instances[0].InstanceId'").trim()
-                        echo "Launched temporary EC2 instance ${env.INSTANCE_ID} with User Data. It will self-terminate after populating EFS."
-                    }
-                }
-            }
-        }
+        //                 def run_instance_result = sh(
+        //                     returnStdout: true,
+        //                     script: """
+        //                         aws ec2 run-instances \
+        //                         --region ${env.AWS_DEFAULT_REGION} \
+        //                         --image-id ${env.EC2_AMI} \
+        //                         --instance-type t2.micro \
+        //                         --key-name ${env.EC2_KEY_PAIR} \
+        //                         --security-group-ids ${env.EFS_SECURITY_GROUP_ID} \
+        //                         --subnet-id ${env.PRIVATE_SUBNET_ID} \
+        //                         --tag-specifications 'ResourceType=instance,Tags=[{Key=Name,Value=jenkins-efs-populator}]' \
+        //                         --user-data '${userDataScript}'
+        //                     """
+        //                 ).trim()
+        //                 env.INSTANCE_ID = sh(returnStdout: true, script: "echo '${run_instance_result}' | jq -r '.Instances[0].InstanceId'").trim()
+        //                 echo "Launched temporary EC2 instance ${env.INSTANCE_ID} with User Data. It will self-terminate after populating EFS."
+        //             }
+        //         }
+        //     }
+        // }
 
-        stage('Deploy Remainder with Terraform') {
-            agent {
-                docker {
-                    image 'hashicorp/terraform:1.5.7'
-                    args '--user 0 --entrypoint="" --dns 8.8.8.8'
-                }
-            }
-            steps {
-                script {
-                    withCredentials([
-                        string(credentialsId: 'AWS_ACCESS_KEY_ID', variable: 'AWS_ACCESS_KEY_ID'),
-                        string(credentialsId: 'AWS_SECRET_ACCESS_KEY', variable: 'AWS_SECRET_ACCESS_KEY')
-                    ]) {
-                        unstash 'app-code'
-                        unstash 'dependencies-layer'
+        // stage('Deploy Remainder with Terraform') {
+        //     agent {
+        //         docker {
+        //             image 'hashicorp/terraform:1.5.7'
+        //             args '--user 0 --entrypoint="" --dns 8.8.8.8'
+        //         }
+        //     }
+        //     steps {
+        //         script {
+        //             withCredentials([
+        //                 string(credentialsId: 'AWS_ACCESS_KEY_ID', variable: 'AWS_ACCESS_KEY_ID'),
+        //                 string(credentialsId: 'AWS_SECRET_ACCESS_KEY', variable: 'AWS_SECRET_ACCESS_KEY')
+        //             ]) {
+        //                 unstash 'app-code'
+        //                 unstash 'dependencies-layer'
                         
-                        dir(env.TF_PATH) {
-                            sh 'apk add --no-cache python3 py3-pip coreutils'
-                            sh 'pip install awscli --no-cache-dir'
+        //                 dir(env.TF_PATH) {
+        //                     sh 'apk add --no-cache python3 py3-pip coreutils'
+        //                     sh 'pip install awscli --no-cache-dir'
 
-                            def fileHashApp = sh(returnStdout: true, script: "sha256sum ${APP_ZIP} | awk '{print \$1}'").trim()
-                            def fileHashLayer = sh(returnStdout: true, script: "sha256sum ${LAYER_ZIP} | awk '{print \$1}'").trim()
+        //                     def fileHashApp = sh(returnStdout: true, script: "sha256sum ${APP_ZIP} | awk '{print \$1}'").trim()
+        //                     def fileHashLayer = sh(returnStdout: true, script: "sha256sum ${LAYER_ZIP} | awk '{print \$1}'").trim()
                             
-                            echo 'Deploying the remaining resources with Terraform...'
-                            sh 'terraform init -upgrade'
-                            sh """
-                                terraform apply -auto-approve \
-                                -var 's3_key_app=${APP_ZIP}' \
-                                -var 'source_code_hash_app=${fileHashApp}' \
-                                -var 's3_key_layer=${LAYER_ZIP}' \
-                                -var 'source_code_hash_layer=${fileHashLayer}'
-                            """
-                        }
-                    }
-                }
-            }
-        }
+        //                     echo 'Deploying the remaining resources with Terraform...'
+        //                     sh 'terraform init -upgrade'
+        //                     sh """
+        //                         terraform apply -auto-approve \
+        //                         -var 's3_key_app=${APP_ZIP}' \
+        //                         -var 'source_code_hash_app=${fileHashApp}' \
+        //                         -var 's3_key_layer=${LAYER_ZIP}' \
+        //                         -var 'source_code_hash_layer=${fileHashLayer}'
+        //                     """
+        //                 }
+        //             }
+        //         }
+        //     }
+        // }
 
         stage('Post-Deployment Info') {
             agent {

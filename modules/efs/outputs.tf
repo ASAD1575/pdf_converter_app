@@ -14,3 +14,9 @@ output "efs_access_point_arn" {
   value = aws_efs_access_point.libreoffice_ap.arn
   description = "The ARN of the EFS access point."
 }
+
+output "aws_efs_file_system_id" {
+  description = "The ID of the EFS file system."
+  value       = aws_efs_file_system.libreoffice_fs.id
+  
+}

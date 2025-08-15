@@ -105,8 +105,8 @@ module "lambda_function" {
   # source_code_hash_libreoffice_layer = var.source_code_hash_libreoffice_layer
 
   efs_name = "LibreOfficeEFS"
-  # efs_access_point_arn = module.efs.efs_access_point_arn
-
+  efs_access_point_arn = module.efs.efs_access_point_arn
+  
 }
 
 # Add the API Gateway module

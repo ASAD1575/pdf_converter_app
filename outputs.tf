@@ -84,5 +84,14 @@ output "efs_access_point_arn" {
 output "efs_file_system_id" {
   value = module.efs.efs_file_system_id
   description = "The ID of the EFS file system."
-  
+}
+
+output "efs_access_point_id" {
+  value = module.efs.efs_access_point_id
+  description = "The ID of the EFS access point."
+}
+
+output "private_subnet_ids" {
+  value = module.vpc.private_subnet_ids
+  description = "List of private subnet IDs."
 }

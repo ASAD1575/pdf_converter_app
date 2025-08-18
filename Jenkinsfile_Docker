@@ -196,29 +196,40 @@ pipeline {
                     ]) {
                         sh 'yum update -y && yum install -y python3'
                         echo "Launching temporary EC2 instance in private subnet: ${env.PRIVATE_SUBNET_ID} with User Data script..."
-                        
-                        // User Data script to be executed on the EC2 instance at launch
+
                         def userDataScript = """
                             #!/bin/bash
                             set -ex
+                            exec > >(tee /var/log/user-data.log|logger -t user-data -s 2>/dev/console) 2>&1
+
                             sudo yum update -y
                             sudo yum install -y amazon-efs-utils
+
                             echo "Waiting for EFS mount target..."
                             sleep 30
                             sudo mkdir -p /mnt/efs
                             sudo mount -t efs -o tls,accesspoint=${env.EFS_ACCESS_POINT_ID} ${env.EFS_FILE_SYSTEM_ID}.efs.${env.AWS_DEFAULT_REGION}.amazonaws.com:/ /mnt/efs
-                            
+
+                            # --- SCRIPT STARTS HERE ---
                             # Download LibreOffice, install, and copy to EFS
                             wget "https://download.documentfoundation.org/libreoffice/stable/25.2.5/deb/x86_64/LibreOffice_25.2.5_Linux_x86-64_deb_sdk.tar.gz"
                             tar -zxvf LibreOffice_25.2.5_Linux_x86-64_deb_sdk.tar.gz
-                            sudo yum install -y libreoffice
-                            sudo cp -r /usr/lib64/libreoffice /mnt/efs/
                             
+                            # The deb package requires `dpkg`, which is not available on Amazon Linux 2.
+                            # Use `yum` to install the rpm equivalent instead. This is the correct way.
+                            sudo yum install -y libreoffice
+
+                            sudo cp -r /usr/lib64/libreoffice /mnt/efs/
+
                             sudo umount /mnt/efs
                             echo "EFS population complete. Terminating instance..."
+                            # --- SCRIPT ENDS HERE ---
+                            
+                            # Self-terminate
                             aws ec2 terminate-instances --instance-ids \$(curl -s http://169.254.169.254/latest/meta-data/instance-id) --region ${env.AWS_DEFAULT_REGION}
                         """
 
+                        // The rest of the stage remains the same
                         def run_instance_result = sh(
                             returnStdout: true,
                             script: """
@@ -234,7 +245,7 @@ pipeline {
                             """
                         ).trim()
                         env.INSTANCE_ID = sh(returnStdout: true, script: "echo '${run_instance_result}' | python3 -c \"import sys, json; print(json.load(sys.stdin)['Instances'][0]['InstanceId'])\"").trim()
-                        echo "Launched temporary EC2 instance ${env.INSTANCE_ID} with User Data. It will self-terminate after populating EFS."
+                        echo "Launched temporary EC2 instance ${env.INSTANCE_ID}. Check CloudWatch Logs for progress."
                     }
                 }
             }

@@ -278,7 +278,7 @@ pipeline {
                                 --security-group-ids ${env.EFS_SECURITY_GROUP_ID} \\
                                 --subnet-id ${env.PRIVATE_SUBNET_ID} \\
                                 --tag-specifications 'ResourceType=instance,Tags=[{Key=Name,Value=jenkins-efs-populator}]' \\
-                                --iam-instance-profile Name=efs-populator-role \\
+                                --iam-instance-profile Arn=arn:aws:iam::375299695019:instance-profile/efs-populator-role \\
                                 --user-data '${userDataScript}'
                             """
                         ).trim()

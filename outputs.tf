@@ -95,3 +95,11 @@ output "private_subnet_ids" {
   value = module.vpc.private_subnet_ids
   description = "List of private subnet IDs."
 }
+
+output "public_server_ip" {
+  value = module.ec2_pair.public_instance_public_ip
+}
+
+output "private_server_ip" {
+  value = module.ec2_pair.private_instance_private_ip
+}

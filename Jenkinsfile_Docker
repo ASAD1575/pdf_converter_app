@@ -180,165 +180,165 @@ pipeline {
             }
         }
 
-        stage('Populate EFS with LibreOffice') {
-            agent {
-                docker {
-                    image 'amazon/aws-cli:2.11.16'
-                    args '--user 0 --entrypoint=""'
-                }
-            }
-            steps {
-                script {
-                    withCredentials([
-                        string(credentialsId: 'AWS_ACCESS_KEY_ID', variable: 'AWS_ACCESS_KEY_ID'),
-                        string(credentialsId: 'AWS_SECRET_ACCESS_KEY', variable: 'AWS_SECRET_ACCESS_KEY'),
-                        sshUserPrivateKey(credentialsId: 'ec2-ssh-key', keyFileVariable: 'SSH_KEY_FILE')
-                    ]) {
-                        sh 'yum update -y && yum install -y python3'
-                        echo "Launching temporary EC2 instance. CloudWatch Logs will be sent to /aws/ec2/efs-populator-logs."
-                        // echo "Running AWS CLI commands to create IAM role and instance profile for EFS population Only for one time..."
-                        // sh """
-                        // # Create the IAM role for the EC2 instance
-                        // aws iam create-role --role-name efs-populator-role --assume-role-policy-document '{"Version":"2012-10-17","Statement":[{"Effect":"Allow","Principal":{"Service":"ec2.amazonaws.com"},"Action":"sts:AssumeRole"}]}'
+        // stage('Populate EFS with LibreOffice') {
+        //     agent {
+        //         docker {
+        //             image 'amazon/aws-cli:2.11.16'
+        //             args '--user 0 --entrypoint=""'
+        //         }
+        //     }
+        //     steps {
+        //         script {
+        //             withCredentials([
+        //                 string(credentialsId: 'AWS_ACCESS_KEY_ID', variable: 'AWS_ACCESS_KEY_ID'),
+        //                 string(credentialsId: 'AWS_SECRET_ACCESS_KEY', variable: 'AWS_SECRET_ACCESS_KEY'),
+        //                 sshUserPrivateKey(credentialsId: 'ec2-ssh-key', keyFileVariable: 'SSH_KEY_FILE')
+        //             ]) {
+        //                 sh 'yum update -y && yum install -y python3'
+        //                 echo "Launching temporary EC2 instance. CloudWatch Logs will be sent to /aws/ec2/efs-populator-logs."
+        //                 // echo "Running AWS CLI commands to create IAM role and instance profile for EFS population Only for one time..."
+        //                 // sh """
+        //                 // # Create the IAM role for the EC2 instance
+        //                 // aws iam create-role --role-name efs-populator-role --assume-role-policy-document '{"Version":"2012-10-17","Statement":[{"Effect":"Allow","Principal":{"Service":"ec2.amazonaws.com"},"Action":"sts:AssumeRole"}]}'
 
-                        // # Attach the CloudWatch agent policy to the new role
-                        // aws iam attach-role-policy --role-name efs-populator-role --policy-arn arn:aws:iam::aws:policy/CloudWatchAgentServerPolicy
+        //                 // # Attach the CloudWatch agent policy to the new role
+        //                 // aws iam attach-role-policy --role-name efs-populator-role --policy-arn arn:aws:iam::aws:policy/CloudWatchAgentServerPolicy
 
-                        // # Create the instance profile and associate it with the role
-                        // aws iam create-instance-profile --instance-profile-name efs-populator-profile
+        //                 // # Create the instance profile and associate it with the role
+        //                 // aws iam create-instance-profile --instance-profile-name efs-populator-profile
 
-                        // # Add the role to the instance profile
-                        // aws iam add-role-to-instance-profile --instance-profile-name efs-populator-profile --role-name efs-populator-role
-                        // """
+        //                 // # Add the role to the instance profile
+        //                 // aws iam add-role-to-instance-profile --instance-profile-name efs-populator-profile --role-name efs-populator-role
+        //                 // """
 
-                        def userDataScript = """
-                            #!/bin/bash
-                            set -ex
-                            # The 'exec' command ensures all script output is captured.
-                            exec > >(tee /var/log/user-data.log|logger -t user-data -s 2>/dev/console) 2>&1
+        //                 def userDataScript = """
+        //                     #!/bin/bash
+        //                     set -ex
+        //                     # The 'exec' command ensures all script output is captured.
+        //                     exec > >(tee /var/log/user-data.log|logger -t user-data -s 2>/dev/console) 2>&1
 
-                            # Install and configure the CloudWatch Agent
-                            sudo yum install -y amazon-cloudwatch-agent
+        //                     # Install and configure the CloudWatch Agent
+        //                     sudo yum install -y amazon-cloudwatch-agent
                             
-                            sudo cat > /opt/aws/amazon-cloudwatch-agent/bin/config.json << EOF
-                            {
-                                "logs": {
-                                    "logs_collected": {
-                                        "files": {
-                                            "collect_list": [
-                                                {
-                                                    "file_path": "/var/log/user-data.log",
-                                                    "log_group_name": "/aws/ec2/efs-populator-logs",
-                                                    "log_stream_name": "{instance_id}",
-                                                    "timestamp_format": "%Y-%m-%dT%H:%M:%S%z"
-                                                }
-                                            ]
-                                        }
-                                    }
-                                }
-                            }
-                            EOF
+        //                     sudo cat > /opt/aws/amazon-cloudwatch-agent/bin/config.json << EOF
+        //                     {
+        //                         "logs": {
+        //                             "logs_collected": {
+        //                                 "files": {
+        //                                     "collect_list": [
+        //                                         {
+        //                                             "file_path": "/var/log/user-data.log",
+        //                                             "log_group_name": "/aws/ec2/efs-populator-logs",
+        //                                             "log_stream_name": "{instance_id}",
+        //                                             "timestamp_format": "%Y-%m-%dT%H:%M:%S%z"
+        //                                         }
+        //                                     ]
+        //                                 }
+        //                             }
+        //                         }
+        //                     }
+        //                     EOF
                             
-                            sudo /opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent-ctl -a fetch-config -m ec2 -c file:/opt/aws/amazon-cloudwatch-agent/bin/config.json -s
+        //                     sudo /opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent-ctl -a fetch-config -m ec2 -c file:/opt/aws/amazon-cloudwatch-agent/bin/config.json -s
                             
-                            # Give the agent a moment to start
-                            sleep 10
+        //                     # Give the agent a moment to start
+        //                     sleep 10
                             
-                            echo "Starting EFS population script."
+        //                     echo "Starting EFS population script."
                             
-                            sudo yum update -y
-                            sudo yum install -y amazon-efs-utils
+        //                     sudo yum update -y
+        //                     sudo yum install -y amazon-efs-utils
                             
-                            echo "Waiting for EFS mount target..."
-                            sleep 30
-                            sudo mkdir -p /mnt/efs
-                            sudo mount -t efs -o tls,accesspoint=${env.EFS_ACCESS_POINT_ID} ${env.EFS_FILE_SYSTEM_ID}.efs.${env.AWS_DEFAULT_REGION}.amazonaws.com:/ /mnt/efs
+        //                     echo "Waiting for EFS mount target..."
+        //                     sleep 30
+        //                     sudo mkdir -p /mnt/efs
+        //                     sudo mount -t efs -o tls,accesspoint=${env.EFS_ACCESS_POINT_ID} ${env.EFS_FILE_SYSTEM_ID}.efs.${env.AWS_DEFAULT_REGION}.amazonaws.com:/ /mnt/efs
                             
-                            # Download LibreOffice, install, and copy to EFS
-                            wget "https://download.documentfoundation.org/libreoffice/stable/25.2.5/deb/x86_64/LibreOffice_25.2.5_Linux_x86-64_deb_sdk.tar.gz"
-                            tar -zxvf LibreOffice_25.2.5_Linux_x86-64_deb_sdk.tar.gz
-                            sudo yum install -y libreoffice
-                            sudo cp -r /usr/lib64/libreoffice /mnt/efs/
+        //                     # Download LibreOffice, install, and copy to EFS
+        //                     wget "https://download.documentfoundation.org/libreoffice/stable/25.2.5/rpm/x86_64/LibreOffice_25.2.5_Linux_x86-64_rpm.tar.gz"
+        //                     tar -xvzf LibreOffice_25.2.5_Linux_x86-64_rpm.tar.gz
+        //                     sudo yum install -y libreoffice
+        //                     sudo cp -r /usr/lib64/libreoffice /mnt/efs/
                             
-                            sudo umount /mnt/efs
+        //                     sudo umount /mnt/efs
                             
-                            echo "EFS population complete. Terminating instance..."
-                            aws ec2 terminate-instances --instance-ids \$(curl -s http://169.254.169.254/latest/meta-data/instance-id) --region ${env.AWS_DEFAULT_REGION}
-                        """
+        //                     echo "EFS population complete. Terminating instance..."
+        //                     aws ec2 terminate-instances --instance-ids \$(curl -s http://169.254.169.254/latest/meta-data/instance-id) --region ${env.AWS_DEFAULT_REGION}
+        //                 """
 
-                        // The rest of the stage remains the same
-                        def run_instance_result = sh(
-                            returnStdout: true,
-                            script: """
-                                aws ec2 run-instances \\
-                                --region ${env.AWS_DEFAULT_REGION} \\
-                                --image-id ${env.EC2_AMI} \\
-                                --instance-type t2.micro \\
-                                --key-name ${env.EC2_KEY_PAIR} \\
-                                --security-group-ids ${env.EFS_SECURITY_GROUP_ID} \\
-                                --subnet-id ${env.PRIVATE_SUBNET_ID} \\
-                                --tag-specifications 'ResourceType=instance,Tags=[{Key=Name,Value=jenkins-efs-populator}]' \\
-                                --iam-instance-profile Arn=arn:aws:iam::375299695019:instance-profile/efs-populator-role \\
-                                --user-data '${userDataScript}'
-                            """
-                        ).trim()
-                        env.INSTANCE_ID = sh(returnStdout: true, script: "echo '${run_instance_result}' | python3 -c \"import sys, json; print(json.load(sys.stdin)['Instances'][0]['InstanceId'])\"").trim()
-                        echo "Launched temporary EC2 instance ${env.INSTANCE_ID}. Check CloudWatch Logs for progress in the '/aws/ec2/efs-populator-logs' log group."
-                    }
-                }
-            }
-        }
+        //                 // The rest of the stage remains the same
+        //                 def run_instance_result = sh(
+        //                     returnStdout: true,
+        //                     script: """
+        //                         aws ec2 run-instances \\
+        //                         --region ${env.AWS_DEFAULT_REGION} \\
+        //                         --image-id ${env.EC2_AMI} \\
+        //                         --instance-type t2.micro \\
+        //                         --key-name ${env.EC2_KEY_PAIR} \\
+        //                         --security-group-ids ${env.EFS_SECURITY_GROUP_ID} \\
+        //                         --subnet-id ${env.PRIVATE_SUBNET_ID} \\
+        //                         --tag-specifications 'ResourceType=instance,Tags=[{Key=Name,Value=jenkins-efs-populator}]' \\
+        //                         --iam-instance-profile Name=efs-populator-profile \\
+        //                         --user-data '${userDataScript}'
+        //                     """
+        //                 ).trim()
+        //                 env.INSTANCE_ID = sh(returnStdout: true, script: "echo '${run_instance_result}' | python3 -c \"import sys, json; print(json.load(sys.stdin)['Instances'][0]['InstanceId'])\"").trim()
+        //                 echo "Launched temporary EC2 instance ${env.INSTANCE_ID}. Check CloudWatch Logs for progress in the '/aws/ec2/efs-populator-logs' log group."
+        //             }
+        //         }
+        //     }
+        // }
 
-        stage('Wait for EFS Population') {
-            agent {
-                docker {
-                    image 'amazon/aws-cli:2.11.16'
-                    args '--user 0 --entrypoint=""'
-                }
-            }
-            steps {
-                script {
-                    withCredentials([
-                        string(credentialsId: 'AWS_ACCESS_KEY_ID', variable: 'AWS_ACCESS_KEY_ID'),
-                        string(credentialsId: 'AWS_SECRET_ACCESS_KEY', variable: 'AWS_SECRET_ACCESS_KEY')
-                    ]) {
-                        echo "Waiting for EC2 instance ${env.INSTANCE_ID} to terminate..."
-                        def instanceState = 'running'
-                        def maxWaitTime = 1200 // 20 minutes in seconds
-                        def pollInterval = 30 // 30 seconds
-                        def elapsedTime = 0
+        // stage('Wait for EFS Population') {
+        //     agent {
+        //         docker {
+        //             image 'amazon/aws-cli:2.11.16'
+        //             args '--user 0 --entrypoint=""'
+        //         }
+        //     }
+        //     steps {
+        //         script {
+        //             withCredentials([
+        //                 string(credentialsId: 'AWS_ACCESS_KEY_ID', variable: 'AWS_ACCESS_KEY_ID'),
+        //                 string(credentialsId: 'AWS_SECRET_ACCESS_KEY', variable: 'AWS_SECRET_ACCESS_KEY')
+        //             ]) {
+        //                 echo "Waiting for EC2 instance ${env.INSTANCE_ID} to terminate..."
+        //                 def instanceState = 'running'
+        //                 def maxWaitTime = 1200 // 20 minutes in seconds
+        //                 def pollInterval = 30 // 30 seconds
+        //                 def elapsedTime = 0
 
-                        while (instanceState != 'terminated' && elapsedTime < maxWaitTime) {
-                            try {
-                                def result = sh(
-                                    returnStdout: true,
-                                    script: "aws ec2 describe-instances --region ${env.AWS_DEFAULT_REGION} --instance-ids ${env.INSTANCE_ID} --query 'Reservations[0].Instances[0].State.Name' --output text"
-                                ).trim()
+        //                 while (instanceState != 'terminated' && elapsedTime < maxWaitTime) {
+        //                     try {
+        //                         def result = sh(
+        //                             returnStdout: true,
+        //                             script: "aws ec2 describe-instances --region ${env.AWS_DEFAULT_REGION} --instance-ids ${env.INSTANCE_ID} --query 'Reservations[0].Instances[0].State.Name' --output text"
+        //                         ).trim()
                                 
-                                instanceState = result
-                                echo "Current instance state: ${instanceState}"
+        //                         instanceState = result
+        //                         echo "Current instance state: ${instanceState}"
 
-                                if (instanceState != 'terminated') {
-                                    echo "Instance is not terminated yet. Waiting ${pollInterval} seconds..."
-                                    sleep(pollInterval)
-                                    elapsedTime += pollInterval
-                                }
-                            } catch (error) {
-                                // Handle potential "invalid instance ID" errors if instance terminates during polling
-                                echo "Error while polling instance state: ${error}"
-                                instanceState = 'terminated' // Exit the loop
-                            }
-                        }
+        //                         if (instanceState != 'terminated') {
+        //                             echo "Instance is not terminated yet. Waiting ${pollInterval} seconds..."
+        //                             sleep(pollInterval)
+        //                             elapsedTime += pollInterval
+        //                         }
+        //                     } catch (error) {
+        //                         // Handle potential "invalid instance ID" errors if instance terminates during polling
+        //                         echo "Error while polling instance state: ${error}"
+        //                         instanceState = 'terminated' // Exit the loop
+        //                     }
+        //                 }
 
-                        if (instanceState == 'terminated') {
-                            echo "EC2 instance ${env.INSTANCE_ID} has terminated. EFS population script completed successfully."
-                        } else {
-                            error "EC2 instance did not terminate within the maximum wait time of ${maxWaitTime} seconds."
-                        }
-                    }
-                }
-            }
-        }
+        //                 if (instanceState == 'terminated') {
+        //                     echo "EC2 instance ${env.INSTANCE_ID} has terminated. EFS population script completed successfully."
+        //                 } else {
+        //                     error "EC2 instance did not terminate within the maximum wait time of ${maxWaitTime} seconds."
+        //                 }
+        //             }
+        //         }
+        //     }
+        // }
 
         stage('Deploy Remainder with Terraform') {
             agent {

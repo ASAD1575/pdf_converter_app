@@ -138,6 +138,18 @@ module "cloudwatch" {
 }
 
 
+module "ec2_pair" {
+  source = "./modules/ec2_pair"
+  ami_id = "ami-0becc523130ac9d5d" # Replace with your actual AMI ID
+  instance_type = "t2.micro" # Replace with your desired instance type
+  public_subnet_id = module.vpc.public_subnet_id
+  private_subnet_id = module.vpc.private_subnet_id
+  key_name = "efs_temp_key" # Replace with your actual key pair name
+  vpc_security_group_ids = [module.security_group.app_sg_id]
+  region = "us-east-1" # Ensure this matches your provider configuration
+  
+}
+
 # --- Automation for local .env file update ---
 resource "null_resource" "update_local_env" {
   depends_on = [

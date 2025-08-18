@@ -232,7 +232,7 @@ pipeline {
                                 --user-data '${userDataScript}'
                             """
                         ).trim()
-                        env.INSTANCE_ID = sh(returnStdout: true, script: "echo '${run_instance_result}' | jq -r '.Instances[0].InstanceId'").trim()
+                        env.INSTANCE_ID = sh(returnStdout: true, script: "echo '${run_instance_result}' | python3 -c \"import sys, json; print(json.load(sys.stdin)['Instances'][0]['InstanceId'])\"").trim()
                         echo "Launched temporary EC2 instance ${env.INSTANCE_ID} with User Data. It will self-terminate after populating EFS."
                     }
                 }

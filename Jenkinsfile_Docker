@@ -196,19 +196,20 @@ pipeline {
                     ]) {
                         sh 'yum update -y && yum install -y python3'
                         echo "Launching temporary EC2 instance. CloudWatch Logs will be sent to /aws/ec2/efs-populator-logs."
-                        sh """
-                        # Create the IAM role for the EC2 instance
-                        aws iam create-role --role-name efs-populator-role --assume-role-policy-document '{"Version":"2012-10-17","Statement":[{"Effect":"Allow","Principal":{"Service":"ec2.amazonaws.com"},"Action":"sts:AssumeRole"}]}'
+                        // echo "Running AWS CLI commands to create IAM role and instance profile for EFS population Only for one time..."
+                        // sh """
+                        // # Create the IAM role for the EC2 instance
+                        // aws iam create-role --role-name efs-populator-role --assume-role-policy-document '{"Version":"2012-10-17","Statement":[{"Effect":"Allow","Principal":{"Service":"ec2.amazonaws.com"},"Action":"sts:AssumeRole"}]}'
 
-                        # Attach the CloudWatch agent policy to the new role
-                        aws iam attach-role-policy --role-name efs-populator-role --policy-arn arn:aws:iam::aws:policy/CloudWatchAgentServerPolicy
-                        
-                        # Create the instance profile and associate it with the role
-                        aws iam create-instance-profile --instance-profile-name efs-populator-profile
-                        
-                        # Add the role to the instance profile
-                        aws iam add-role-to-instance-profile --instance-profile-name efs-populator-profile --role-name efs-populator-role
-                        """
+                        // # Attach the CloudWatch agent policy to the new role
+                        // aws iam attach-role-policy --role-name efs-populator-role --policy-arn arn:aws:iam::aws:policy/CloudWatchAgentServerPolicy
+
+                        // # Create the instance profile and associate it with the role
+                        // aws iam create-instance-profile --instance-profile-name efs-populator-profile
+
+                        // # Add the role to the instance profile
+                        // aws iam add-role-to-instance-profile --instance-profile-name efs-populator-profile --role-name efs-populator-role
+                        // """
 
                         def userDataScript = """
                             #!/bin/bash
@@ -277,7 +278,7 @@ pipeline {
                                 --security-group-ids ${env.EFS_SECURITY_GROUP_ID} \\
                                 --subnet-id ${env.PRIVATE_SUBNET_ID} \\
                                 --tag-specifications 'ResourceType=instance,Tags=[{Key=Name,Value=jenkins-efs-populator}]' \\
-                                --iam-instance-profile Name=efs-populator-profile \\
+                                --iam-instance-profile Name=efs-populator-role \\
                                 --user-data '${userDataScript}'
                             """
                         ).trim()

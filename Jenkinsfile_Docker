@@ -194,6 +194,7 @@ pipeline {
                         string(credentialsId: 'AWS_SECRET_ACCESS_KEY', variable: 'AWS_SECRET_ACCESS_KEY'),
                         sshUserPrivateKey(credentialsId: 'ec2-ssh-key', keyFileVariable: 'SSH_KEY_FILE')
                     ]) {
+                        sh 'yum update -y && yum install -y python3'
                         echo "Launching temporary EC2 instance in private subnet: ${env.PRIVATE_SUBNET_ID} with User Data script..."
                         
                         // User Data script to be executed on the EC2 instance at launch
@@ -234,6 +235,57 @@ pipeline {
                         ).trim()
                         env.INSTANCE_ID = sh(returnStdout: true, script: "echo '${run_instance_result}' | python3 -c \"import sys, json; print(json.load(sys.stdin)['Instances'][0]['InstanceId'])\"").trim()
                         echo "Launched temporary EC2 instance ${env.INSTANCE_ID} with User Data. It will self-terminate after populating EFS."
+                    }
+                }
+            }
+        }
+        
+        stage('Wait for EFS Population') {
+            agent {
+                docker {
+                    image 'amazon/aws-cli:2.11.16'
+                    args '--user 0 --entrypoint=""'
+                }
+            }
+            steps {
+                script {
+                    withCredentials([
+                        string(credentialsId: 'AWS_ACCESS_KEY_ID', variable: 'AWS_ACCESS_KEY_ID'),
+                        string(credentialsId: 'AWS_SECRET_ACCESS_KEY', variable: 'AWS_SECRET_ACCESS_KEY')
+                    ]) {
+                        echo "Waiting for EC2 instance ${env.INSTANCE_ID} to terminate..."
+                        def instanceState = 'running'
+                        def maxWaitTime = 1200 // 20 minutes in seconds
+                        def pollInterval = 30 // 30 seconds
+                        def elapsedTime = 0
+
+                        while (instanceState != 'terminated' && elapsedTime < maxWaitTime) {
+                            try {
+                                def result = sh(
+                                    returnStdout: true,
+                                    script: "aws ec2 describe-instances --region ${env.AWS_DEFAULT_REGION} --instance-ids ${env.INSTANCE_ID} --query 'Reservations[0].Instances[0].State.Name' --output text"
+                                ).trim()
+                                
+                                instanceState = result
+                                echo "Current instance state: ${instanceState}"
+
+                                if (instanceState != 'terminated') {
+                                    echo "Instance is not terminated yet. Waiting ${pollInterval} seconds..."
+                                    sleep(pollInterval)
+                                    elapsedTime += pollInterval
+                                }
+                            } catch (error) {
+                                // Handle potential "invalid instance ID" errors if instance terminates during polling
+                                echo "Error while polling instance state: ${error}"
+                                instanceState = 'terminated' // Exit the loop
+                            }
+                        }
+
+                        if (instanceState == 'terminated') {
+                            echo "EC2 instance ${env.INSTANCE_ID} has terminated. EFS population script completed successfully."
+                        } else {
+                            error "EC2 instance did not terminate within the maximum wait time of ${maxWaitTime} seconds."
+                        }
                     }
                 }
             }

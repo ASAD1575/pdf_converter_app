@@ -1,4 +1,3 @@
-# modules/ec2_pair/main.tf
 
 # Define the configuration for each instance using a local variable
 locals {

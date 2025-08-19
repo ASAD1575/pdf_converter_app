@@ -139,7 +139,7 @@ module "cloudwatch" {
 
 
 module "ec2_pair" {
-  source                  = "./modules/ec2_pair"
+  source                  = "./modules/ec2"
   ami_id                  = "ami-0becc523130ac9d5d"                    # Replace with your actual AMI ID
   instance_type           = "t2.micro"                                 # Replace with your desired instance type
   public_subnet_id        = module.vpc.public_subnet_id
@@ -148,7 +148,7 @@ module "ec2_pair" {
   vpc_security_group_ids  = [module.security_group.app_sg_id]
   region                  = "us-east-1"                                # Ensure this matches your provider configuration
   root_volume_size        = 20                                         # Set your desired root volume size in GB
-  
+
 }
 
 # --- Automation for local .env file update ---

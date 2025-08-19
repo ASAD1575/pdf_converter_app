@@ -29,3 +29,16 @@ variable "vpc_security_group_ids" {
   description = "A list of security group IDs to associate with the instances."
   type        = list(string)
 }
+
+variable "root_volume_size" {
+  description = "The size of the root volume in GB."
+  type        = number
+  
+}
+
+variable "region" {
+  description = "The AWS region to deploy the EC2 instances in."
+  type        = string
+  default     = "us-east-1" # Default region, can be overridden
+  
+}

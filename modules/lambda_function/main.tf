@@ -152,7 +152,7 @@ resource "aws_lambda_function" "pdf_converter_app" {
 
   file_system_config {
     arn             = var.efs_access_point_arn
-    local_mount_path = "/mnt/libreoffice"
+    local_mount_path = "/libreoffice"
   }
 
   # Environment variables for the application (e.g., database connection)
@@ -166,7 +166,7 @@ resource "aws_lambda_function" "pdf_converter_app" {
       S3_BUCKET_NAME = var.s3_bucket_name
       # SERCRET_KEY = var.secret_key
       API_GATEWAY_BASE_PATH = "/prod"
-      LIBREOFFICE_PATH = "/mnt/efs/libreoffice/program/soffice.bin"
+      LIBREOFFICE_PATH = "/mnt/libreoffice/program/soffice.bin"
       # Add any other environment variables your app needs
     }
   }

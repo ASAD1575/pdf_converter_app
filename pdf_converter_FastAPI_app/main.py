@@ -35,7 +35,7 @@ s3_client = boto3.client("s3")
 # Corrected path based on your EFS mount configuration
 LIBREOFFICE_PATH = '/mnt/libreoffice/program/soffice.bin'
 # Path to the Xvfb executable
-XVFB_RUN_PATH = '/mnt/efs/bin/xvfb/xvfb-run'
+XVFB_RUN_PATH = '/mnt/libreoffice/bin/xvfb/xvfb-run'
 
 # -------------------- Health Check for LibreOffice --------------------
 try:

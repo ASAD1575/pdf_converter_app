@@ -152,7 +152,7 @@ resource "aws_lambda_function" "pdf_converter_app" {
 
   file_system_config {
     arn             = var.efs_access_point_arn
-    local_mount_path = "/mnt/efs/libreoffice"
+    local_mount_path = "/mnt/libreoffice"
   }
 
   # Environment variables for the application (e.g., database connection)

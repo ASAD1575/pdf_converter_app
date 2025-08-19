@@ -1,7 +1,9 @@
+# This file is for the ec2_pair module
+
 provider "aws" {
   region = var.region # Ensure this matches your provider configuration
-  
 }
+
 # Define the configuration for each instance using a local variable
 locals {
   instance_config = {

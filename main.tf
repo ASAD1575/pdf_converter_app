@@ -140,7 +140,7 @@ module "cloudwatch" {
 
 module "ec2" {
   source                  = "./modules/ec2"
-  ami_id                  = "ami-0becc523130ac9d5d"                    # Replace with your actual AMI ID
+  ami_id                  = "ami-020cba7c55df1f615"                    # Replace with your actual AMI ID
   instance_type           = "t2.micro"                                 # Replace with your desired instance type
   public_subnet_id        = module.vpc.public_subnet_ids[0]
   private_subnet_id       = module.vpc.private_subnet_ids[0]

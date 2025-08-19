@@ -97,9 +97,11 @@ output "private_subnet_ids" {
 }
 
 output "public_server_ip" {
-  value = module.ec2_pair.public_instance_public_ip
+  value = module.ec2.public_instance_public_ip
+  description = "The public IP address of the public EC2 instance."
 }
 
 output "private_server_ip" {
-  value = module.ec2_pair.private_instance_private_ip
+  value = module.ec2.private_instance_private_ip
+  description = "The private IP address of the private EC2 instance."
 }

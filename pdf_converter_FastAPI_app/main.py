@@ -32,14 +32,35 @@ S3_BUCKET_NAME = os.getenv("S3_BUCKET_NAME")
 s3_client = boto3.client("s3")
 
 # -------------------- LibreOffice Path --------------------
+# Corrected path based on your EFS mount configuration
 LIBREOFFICE_PATH = '/mnt/libreoffice/program/soffice.bin'
+# Path to the Xvfb executable
+XVFB_RUN_PATH = '/usr/bin/xvfb-run'
 
 # -------------------- Health Check for LibreOffice --------------------
 try:
-    version_check = subprocess.run([LIBREOFFICE_PATH, "--version"], capture_output=True, text=True)
+    # First, check if the binary files actually exist
+    if not os.path.exists(LIBREOFFICE_PATH):
+        logger.error(f"LibreOffice binary file not found at {LIBREOFFICE_PATH}.")
+        # List the contents of the mounted directory to help with debugging
+        logger.error(f"Contents of /mnt/libreoffice/: {os.listdir('/mnt/libreoffice/')}")
+    
+    if not os.path.exists(XVFB_RUN_PATH):
+        logger.error(f"Xvfb executable not found at {XVFB_RUN_PATH}. Please install the 'xvfb' package.")
+
+    # Then try to run it with Xvfb
+    version_check = subprocess.run(
+        [XVFB_RUN_PATH, LIBREOFFICE_PATH, "--version"],
+        capture_output=True,
+        text=True,
+        check=True
+    )
     logger.info(f"LibreOffice version: {version_check.stdout.strip()}")
-except FileNotFoundError:
-    logger.error(f"LibreOffice binary not found at {LIBREOFFICE_PATH}. Check Lambda Layer ARN.")
+
+except FileNotFoundError as e:
+    logger.error(f"Required file not found: {e.filename}. Check Lambda Layer or EFS configuration.")
+except subprocess.CalledProcessError as e:
+    logger.error(f"LibreOffice version check failed with exit code {e.returncode}. Stderr: {e.stderr}")
 except Exception as e:
     logger.error(f"LibreOffice check failed: {e}")
 
@@ -83,6 +104,7 @@ async def convert_to_pdf(file: UploadFile = File(...)):
         logger.info(f"Starting LibreOffice conversion for '{input_docx_temp_path}' to '{output_pdf_temp_path}'")
         result = subprocess.run(
             [
+                XVFB_RUN_PATH,
                 LIBREOFFICE_PATH,
                 "--headless",
                 "--nologo",

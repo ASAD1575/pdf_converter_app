@@ -22,7 +22,7 @@ resource "aws_efs_access_point" "libreoffice_ap" {
     gid = 1000
   }
   root_directory {
-    path = "/"
+    path = "/libreoffice"
     creation_info {
       owner_uid = 1000
       owner_gid = 1000

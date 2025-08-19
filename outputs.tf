@@ -98,15 +98,15 @@ output "private_subnet_ids" {
 
 output "instance_ids" {
   description = "IDs of the created EC2 instances"
-  value       = aws_instance.servers[*].id
+  value       = module.ec2.instance_ids
 }
 
 output "public_ip" {
   description = "The public IP address of the public server"
-  value       = aws_instance.servers[0].public_ip
+  value       = module.ec2.public_ip
 }
 
 output "private_ip" {
   description = "The private IP address of the private server"
-  value       = aws_instance.servers[1].private_ip
+  value       = module.ec2.private_ip
 }

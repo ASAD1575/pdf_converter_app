@@ -26,6 +26,11 @@ resource "aws_instance" "servers" {
   key_name               = var.key_name
   vpc_security_group_ids = var.vpc_security_group_ids
 
+  root_block_device {
+    volume_type = "gp3"
+    volume_size = var.root_volume_size
+  }
+
   associate_public_ip_address = each.value.public_ip_enable
 
   tags = {

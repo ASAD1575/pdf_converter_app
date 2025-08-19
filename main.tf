@@ -148,7 +148,7 @@ module "ec2" {
   vpc_security_group_ids  = [module.security_group.app_sg_id]
   region                  = "us-east-1"                                # Ensure this matches your provider configuration
   root_volume_size        = 20                                         # Set your desired root volume size in GB
-
+  
 }
 
 # --- Automation for local .env file update ---

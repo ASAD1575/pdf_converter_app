@@ -96,12 +96,17 @@ output "private_subnet_ids" {
   description = "List of private subnet IDs."
 }
 
-output "public_server_ip" {
-  value = module.ec2.public_instance_public_ip
-  description = "The public IP address of the public EC2 instance."
+output "instance_ids" {
+  description = "IDs of the created EC2 instances"
+  value       = aws_instance.servers[*].id
 }
 
-output "private_server_ip" {
-  value = module.ec2.private_instance_private_ip
-  description = "The private IP address of the private EC2 instance."
+output "public_ip" {
+  description = "The public IP address of the public server"
+  value       = aws_instance.servers[0].public_ip
+}
+
+output "private_ip" {
+  description = "The private IP address of the private server"
+  value       = aws_instance.servers[1].private_ip
 }

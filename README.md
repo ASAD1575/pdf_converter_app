@@ -1,127 +1,250 @@
-Serverless PDF Converter with FastAPI and Jenkins CI/CD:
+# PDF Converter App — FastAPI + Serverless + Terraform + Jenkins CI/CD
 
-This repository contains the infrastructure and application code for a serverless PDF converter, built with FastAPI and deployed on AWS. The project utilizes a modular Terraform structure for infrastructure management and a Jenkins pipeline for continuous integration and continuous deployment (CI/CD).
+[![Python](https://img.shields.io/badge/Python-3.9+-blue.svg)](https://www.python.org/)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.104.1-green.svg)](https://fastapi.tiangolo.com/)
+[![Terraform](https://img.shields.io/badge/Terraform-1.0+-623CE4.svg)](https://www.terraform.io/)
+[![AWS Lambda](https://img.shields.io/badge/AWS%20Lambda-Serverless-orange.svg)](https://aws.amazon.com/lambda/)
+[![Jenkins](https://img.shields.io/badge/Jenkins-CI%2FCD-red.svg)](https://www.jenkins.io/)
+[![Docker](https://img.shields.io/badge/Docker-%F0%9F%90%B3-blue.svg)](https://www.docker.com/)
 
-🚀 Project Overview:
+A serverless PDF converter built with FastAPI, deployed on AWS Lambda, with infrastructure managed via Terraform and automated CI/CD powered by Jenkins using Docker and Terraform.
 
-The core functionality is a FastAPI application that converts documents (e.g., DOCX, XLSX) into PDFs. This application runs on AWS Lambda. To handle the document conversion, a custom AWS Lambda Layer is created that includes a full installation of LibreOffice. The entire CI/CD process is automated using a Jenkins pipeline.
+## Project Overview
+This project enables document conversion (e.g., DOCX, XLSX) to PDF via a simple REST API built on FastAPI, deployed serverlessly on AWS Lambda. It uses a custom LibreOffice Lambda layer for conversions and automates deployment using a Jenkins pipeline and Terraform.
 
-Key Components:
+### Key components:
+- **FastAPI app** (pdf_converter_FastAPI_app/) — handles conversion logic
+- **Terraform** (modules/, main.tf, variables.tf, etc.) — defines AWS infrastructure
+- **Jenkins pipeline** (Jenkinsfile_Docker) — builds, deploys, and orchestrates CI/CD
+- **Dockerfile** — builds the application and dependencies
+- **Modular Terraform modules** for API Gateway, Lambda, S3, CloudWatch, RDS (optional), VPC, and security setups
 
-FastAPI Application (pdf_converter_FastAPI_app): The main application logic for document conversion.
+## 📂 Project Structure
 
-Modular Terraform: Infrastructure as Code (IaC) is managed using a modular approach to logically separate different AWS resources.
-
-Jenkins Pipeline (Jenkinsfile): Automates the build, deployment, and update process.
-
-LibreOffice Lambda Layer: A custom AWS Lambda layer containing LibreOffice to enable document conversion within the Lambda environment.
-
-📁 File Structure:
-
-The project is organized with a clear separation of concerns.
-
-.
-├── modules/
-
-│   ├── api_gateway/
-
-│   ├── cloudwatch/
-
-│   ├── lambda_function/
-
-│   ├── rds/
-
-│   ├── s3/
-
-│   ├── security_group/
-
-│   └── vpc/
-
+```
+pdf_converter_app/
 ├── pdf_converter_FastAPI_app/
+│   ├── main.py              # Main FastAPI app
+│   ├── database.py          # Database connection and user management
+│   ├── models.py            # Data models
+│   ├── utils.py             # Utility functions
+│   ├── requirements.txt     # Python dependencies
+│   ├── templates/           # HTML templates for web interface
+│   │   ├── login.html
+│   │   ├── register.html
+│   │   ├── dashboard.html
+│   │   ├── download.html
+│   │   ├── forgot_password.html
+│   │   ├── success.html
+│   │   └── img.png
+│   └── uploads/             # Directory for uploaded files
+├── modules/                 # Terraform modules
+│   ├── api_gateway/
+│   ├── lambda_function/
+│   ├── s3/
+│   ├── vpc/
+│   └── ...
+├── main.tf                  # Main Terraform configuration
+├── variables.tf             # Terraform variables
+├── outputs.tf               # Terraform outputs
+├── backend.tf               # Terraform backend configuration
+├── Jenkinsfile_Docker       # Jenkins pipeline script
+├── dockerfile               # Docker build file
+├── .gitignore               # Git ignore file
+└── README.md                # This file
+```
 
-│   ├── templates/
+## Application Details
 
-│   ├── uploads/
+### Purpose
+The PDF Converter App is a web-based application that allows users to convert Microsoft Word documents (.docx) to PDF format. It provides both a REST API for programmatic access and a user-friendly web interface for manual conversions. The application is designed for scalability and cost-efficiency by leveraging serverless architecture on AWS.
 
-│   ├── database.py
+### Key Features
+- **Document Conversion**: Upload .docx files and convert them to PDF using LibreOffice.
+- **User Authentication**: Secure login and registration system with password reset functionality.
+- **File Management**: Store original documents and converted PDFs in AWS S3.
+- **Web Interface**: Intuitive dashboard for uploading files, viewing conversion history, and downloading results.
+- **API Access**: RESTful API endpoints for integration with other systems.
+- **Serverless Deployment**: Runs on AWS Lambda for automatic scaling and minimal operational overhead.
+- **CI/CD Automation**: Automated build, test, and deployment using Jenkins and Docker.
 
-│   ├── main.py
+### Technology Stack
+- **Backend**: FastAPI (Python web framework), Uvicorn (ASGI server)
+- **Conversion Engine**: LibreOffice (via custom Lambda layer)
+- **Database**: PostgreSQL/MySQL (via AWS RDS for user management)
+- **Storage**: AWS S3 (for file uploads and converted PDFs)
+- **Infrastructure**: Terraform (IaC), AWS Lambda, API Gateway, VPC, CloudWatch
+- **CI/CD**: Jenkins, Docker
+- **Frontend**: Jinja2 templates, HTML/CSS/JS (basic web interface)
+- **Other**: Mangum (Lambda adapter), Boto3 (AWS SDK), SQLAlchemy (ORM)
 
-│   ├── models.py
+### Architecture
+The application follows a serverless architecture:
+1. **API Gateway**: Receives HTTP requests and routes them to Lambda functions.
+2. **Lambda Function**: Executes the FastAPI app, handles file processing, and interacts with S3/RDS.
+3. **S3 Buckets**: Store uploaded .docx files and generated PDFs.
+4. **RDS Database**: Manages user accounts and session data.
+5. **EFS (Optional)**: Mounts LibreOffice binaries for Lambda layer.
+6. **CloudWatch**: Monitors logs and performance metrics.
 
-│   ├── requirements.txt
+### Workflow
+1. User registers/logs in via the web interface.
+2. Uploads a .docx file through the dashboard or API.
+3. Application validates the file and stores it in S3.
+4. Triggers LibreOffice conversion in the Lambda environment.
+5. Saves the converted PDF back to S3.
+6. Provides a download link or direct access to the PDF.
+7. Logs all activities for monitoring and debugging.
 
-│   └── utils.py
+### Security Considerations
+- User authentication with secure password hashing.
+- File type validation to prevent malicious uploads.
+- AWS IAM roles with least-privilege access.
+- HTTPS encryption for all communications.
+- Environment variable management for sensitive data.
 
-├── .gitignore
+## Table of Contents
+1. Prerequisites
+2. Local Setup & Run
+3. Terraform Infrastructure Deployment
+4. Jenkins CI/CD Pipeline Setup
+5. Credentials Needed for Jenkins
+6. Clean Up
+7. API Endpoints
+8. Summary
 
-├── Jenkinsfile_Docker
+## 1. Prerequisites
+- Python 3.9+
+- Terraform (installed and AWS credentials configured)
+- Docker (installed for building Lambda layers)
+- Jenkins (server with Docker and Terraform installed as Jenkins agents)
 
-├── main.tf
+## 2. Local Setup & Run
+1. **Clone the repo:**
+    ```
+    git clone https://github.com/ASAD1575/pdf_converter_app.git
+    cd pdf_converter_app
+    ```
 
-├── outputs.tf
+2. **Install dependencies:**
+    ```
+    cd pdf_converter_FastAPI_app
+    pip install -r requirements.txt
+    ```
 
-└── variables.tf
+3. **Run app locally:**
+    ```
+    uvicorn main:app --reload
+    ```
+    - Open http://localhost:8000/docs
+    to use the automatically-generated Swagger UI for conversion endpoints.
 
+4. **(Optional) Run with Docker:**
+    ```
+    docker build -t pdf-converter-app .
+    docker run -p 5000:5000 pdf-converter-app
+    ```
+    - Open http://localhost:5000/docs for the Swagger UI.
 
-🏗️ Modular Terraform:
+## 3. Terraform Infrastructure Deployment
 
-The Terraform configuration is organized into modules to promote reusability and maintainability. The main.tf file in the root directory ties all these modules together.
+1. **Configure variables** in variables.tf:
 
-modules/api_gateway: Defines the API Gateway resources to expose the Lambda function via an HTTP endpoint.
+- AWS region, environment name, S3 bucket names, etc.
 
-modules/cloudwatch: Configures CloudWatch for logging and monitoring of the Lambda function.
+2. **Deploy infrastructure:**
+    ```
+    cd pdf_converter_app
+    terraform init
+    terraform plan
+    terraform apply
+    ```
 
-modules/lambda_function: Manages the AWS Lambda function, including its role and permissions.
+- This will create required AWS resources (API Gateway, Lambda, VPC, etc.)
 
-modules/rds: (If applicable) Contains resources for an RDS database.
+- The output will include the API Gateway URL to invoke the app.
 
-modules/s3: Manages the S3 buckets used for storing application code and layers.
+3. **Validate:**
 
-modules/security_group: Defines the network security groups for controlling traffic to the resources.
+    Visit the API URL to test document conversion in the cloud environment.
 
-modules/vpc: Configures the Virtual Private Cloud (VPC) and its components like subnets and route tables.
+## 4. Jenkins CI/CD Pipeline Setup
 
-main.tf: The root module that instantiates and connects all the sub-modules.
+The Jenkinsfile_Docker automates:
 
-variables.tf: Contains all the variables for the root module.
+- Building a Docker container for the LibreOffice Lambda layer
 
-outputs.tf: Defines the output values (like the API Gateway URL) that can be easily retrieved after deployment.
+- Uploading the Lambda layer artifact to S3 and publishing it
 
-⚙️ Jenkins CI/CD Pipeline:
+- Packaging the FastAPI app and uploading it
 
-The Jenkinsfile orchestrates the entire deployment process. This pipeline is designed to automatically build the application and its dependencies, publish the LibreOffice layer, and deploy the entire infrastructure with Terraform.
+- Running terraform apply and outputting deployment info (e.g., API URL)
 
-Stages:
-Initialize Variables: Sets up necessary environment variables like the host user and group IDs for file permissions.
+**Steps:**
 
-Checkout & Build: Clones the Git repository (https://github.com/vladholubiev/serverless-libreoffice.git) and uses docker-compose to build the LibreOffice Lambda layer, which is essential for the conversion logic.
+1. Create a new **Pipeline** job in Jenkins.
 
-Publish Lambda Layer: Uses the AWS CLI to publish the layers.zip artifact as a new version of the Lambda layer on AWS. The ARN of this new version is stored in the LAYER_VERSION_ARN environment variable.
+2. Connect to this GitHub repository.
 
-Upload to S3: The layers.zip artifact is uploaded to an S3 bucket for persistent storage.
+3. Ensure Jenkins agents have Docker, AWS CLI, and Terraform installed.
 
-Build Lambda Packages: A Docker container is used to build the main application package (app_package.zip) and its Python dependencies (dependencies_layer.zip). These are then stashed for use in the next stage.
+4. Set needed environment variables (below).
 
-Terraform Deploy: This is the final deployment stage. It un-stashes the application and dependency zip files, calculates their SHA256 hashes for versioning, uploads them to S3, and then runs terraform apply to deploy the entire infrastructure. The ARN from the Lambda layer publication stage is passed as a variable to Terraform.
+5. Run the pipeline — Jenkins will deploy your app automatically.
 
-Post-Deployment Info: After a successful deployment, this stage retrieves the API Gateway URL from the Terraform outputs and prints it to the Jenkins console.
+## 5. Credentials Needed for Jenkins
 
-🚀 Getting Started:
+Ensure the following credentials are configured in Jenkins (via "Manage Jenkins" → "Credentials"):
 
-Clone the Repository:
-git clone <https://github.com/ASAD1575/pdf_converter_app.git>
+| Credential Key | Description |
+| --- | --- |
+| AWS_ACCESS_KEY_ID | Your AWS IAM access key with permissions to manage AWS resources and publish Lambda layers |
+| AWS_SECRET_ACCESS_KEY | The corresponding AWS secret key |
+| DOCKERHUB_USERNAME (optional) | If you push Docker images to DockerHub in the pipeline |
+| DOCKERHUB_PASSWORD (optional) | DockerHub access token or password |
+| S3_BUCKET_NAME | Destination bucket for layer and code uploads (or set in Terraform variables) |
 
-Configure Jenkins:
+## 6. Clean Up
 
-Set up a Jenkins pipeline with a Git SCM pointing to this repository.
+When you're done and want to avoid AWS charges:
 
-Configure AWS credentials in Jenkins (AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY).
+```
+terraform destroy
+```
 
-Run the Pipeline:
+Also remove layer artifacts or Docker images as needed.
 
-Trigger a build of the Jenkins pipeline.
+## 7. API Endpoints
 
-This setup ensures that any change pushed to the repository will automatically trigger a new build and deployment, providing a robust and efficient CI/CD workflow.
+### Convert DOCX to PDF
 
-Feel free to customize this README.md to include more specific details about your project, such as how to run the application locally or how to configure the Terraform variables.
+- **POST** `/convert`
+- Upload a `.docx` file to convert it to PDF.
+- Returns a JSON response with a `file_id` for the converted PDF.
+
+### Download Converted PDF
+
+- **GET** `/download/{file_id}`
+- Downloads the converted PDF file using the `file_id`.
+
+### Authentication & User Management
+
+- **GET** `/register` - Registration form
+- **POST** `/register` - Register a new user
+- **GET** `/` - Login form
+- **POST** `/` - Login user
+- **GET** `/forgot_password` - Password reset form
+- **POST** `/reset_password_direct` - Reset password
+
+### Dashboard
+
+- **GET** `/dashboard` - User dashboard page
+
+## 8. Summary
+
+This setup enables a fully automated workflow:
+
+- FastAPI app deployed serverlessly via Terraform
+- Automated CI/CD using Jenkins and Docker
+- Minimal credentials management
+- Easily testable locally and deploys consistently in AWS
